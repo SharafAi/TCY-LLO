@@ -18,10 +18,10 @@ const NEW_HOURS      = 24; // 🆕 tag shows for 24 hours
 // ── Block / size data ─────────────────────────────────────────
 const TB_SIZES = { TB1:10, TB2:16, TB3:16, TB4:10, TB5:30, TB6:40, TB7:40 };
 const SIZES    = [
-  { id:'20FT', label:'📦 20 FT'    },
-  { id:'40FT', label:'📦 40 FT'    },
-  { id:'40HC', label:'📦 40 HC'    },
-  { id:'ALL',  label:'📦 All Sizes'},
+  { id:'20FT', label:'📦 20 FT'  },
+  { id:'40FT', label:'📦 40 FT'  },
+  { id:'20RF', label:'❄️ 20 RF'  },
+  { id:'40RF', label:'❄️ 40 RF'  },
 ];
 const sizeLabel = id => SIZES.find(s=>s.id===id)?.label.replace('📦 ','') ?? id;
 
