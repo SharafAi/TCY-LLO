@@ -1,7 +1,5 @@
 // ============================================================
-//  TCY Port — Container Yard Locator Bot
-//  Runtime: Node.js 18+ (ES Modules)
-//  Process manager: PM2  (pm2 start ecosystem.config.cjs)
+//  TCY Port — Container Yard Locator Bot  (ES Modules)
 // ============================================================
 
 import { Telegraf, Markup } from 'telegraf';
@@ -13,404 +11,285 @@ import advancedFormat       from 'dayjs/plugin/advancedFormat.js';
 
 dayjs.extend(advancedFormat);
 
-// ─────────────────────────────────────────────
-//  CONFIGURATION
-// ─────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────
 const BOT_TOKEN      = '8825795943:AAHRHbNQRPYct_5tMg2Q4hrpfGOKArVDPFQ';
 const SUPERVISOR_ID  = 7953520542;
 const STAFF_GROUP_ID = -5399708931;
 
-// ─────────────────────────────────────────────
-//  BLOCK DATA
-// ─────────────────────────────────────────────
-const TB_SIZES = { TB1: 10, TB2: 16, TB3: 16, TB4: 10, TB5: 30, TB6: 40, TB7: 40 };
+// ── Block data ────────────────────────────────────────────────
+const TB_SIZES = { TB1:10, TB2:16, TB3:16, TB4:10, TB5:30, TB6:40, TB7:40 };
 
-// ─────────────────────────────────────────────
-//  LOCAL JSON DATABASE
-// ─────────────────────────────────────────────
+// ── Container sizes ───────────────────────────────────────────
+const SIZES = [
+  { id:'20FT',  label:"📦 20 FT"      },
+  { id:'40FT',  label:"📦 40 FT"      },
+  { id:'40HC',  label:"📦 40 HC"      },
+  { id:'ALL',   label:"📦 All Sizes"  },
+];
+
+function sizeLabel(id) {
+  return SIZES.find(s => s.id === id)?.label.replace('📦 ','') ?? id;
+}
+
+// ── Key helpers  (liner|size  e.g. "CMA|20FT") ───────────────
+function makeKey(liner, size) { return `${liner}|${size}`; }
+
+function parseKey(key) {
+  const [liner, size = 'ALL'] = key.split('|');
+  return { liner, size };
+}
+
+// ── DB ────────────────────────────────────────────────────────
 const DB_PATH = './yard_layout.json';
+function readDB()     { try { return JSON.parse(fs.readFileSync(DB_PATH,'utf8')); } catch { return {}; } }
+function writeDB(d)   { const t=DB_PATH+'.tmp'; fs.writeFileSync(t,JSON.stringify(d,null,2),'utf8'); fs.renameSync(t,DB_PATH); }
+if (!fs.existsSync(DB_PATH)) { writeDB({}); console.log('[DB] Created'); }
+else console.log('[DB] Loaded from', path.resolve(DB_PATH));
 
-function readDB() {
-  try { return JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); }
-  catch { return {}; }
-}
-
-function writeDB(data) {
-  const tmp = DB_PATH + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
-  fs.renameSync(tmp, DB_PATH);
-}
-
-if (!fs.existsSync(DB_PATH)) {
-  writeDB({});
-  console.log(`[DB] Created empty database at ${path.resolve(DB_PATH)}`);
-} else {
-  console.log(`[DB] Loaded existing database from ${path.resolve(DB_PATH)}`);
-}
-
-// ─────────────────────────────────────────────
-//  BOT INITIALISATION
-// ─────────────────────────────────────────────
+// ── Bot ───────────────────────────────────────────────────────
 const bot = new Telegraf(BOT_TOKEN);
 
-// ─────────────────────────────────────────────
-//  SUPERVISOR STATE  (for multi-step flows)
-// ─────────────────────────────────────────────
-// state: null | 'awaiting_liner_name' | 'awaiting_announce'
-// data:  { liner?, tb? }
-let supState = { action: null, data: {} };
+// ── Supervisor session ────────────────────────────────────────
+let S = { action: null, data: {} };
+function reset() { S = { action: null, data: {} }; }
+function isSup(ctx) { return ctx.from?.id === SUPERVISOR_ID; }
 
-function resetState() { supState = { action: null, data: {} }; }
-
-function isSupervisor(ctx) { return ctx.from?.id === SUPERVISOR_ID; }
-
-// ─────────────────────────────────────────────
-//  MAIN MENU KEYBOARD
-// ─────────────────────────────────────────────
-function mainMenuKeyboard() {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('📍 Set Liner Location', 'menu_set'),
-     Markup.button.callback('🗑️  Remove Liner',      'menu_remove')],
-    [Markup.button.callback('📣 Send Announcement',  'menu_announce'),
-     Markup.button.callback('🗂️  View All Liners',   'menu_view')],
-  ]);
-}
-
-function mainMenuText() {
-  return `⚓ *TCY Yard Control Panel*\n\nSelect an action below:`;
-}
-
-// ─────────────────────────────────────────────
-//  BROADCAST HELPER
-// ─────────────────────────────────────────────
-async function broadcastAndPin(text, parseMode = 'Markdown') {
-  const sent = await bot.telegram.sendMessage(STAFF_GROUP_ID, text, { parse_mode: parseMode });
-  try {
-    await bot.telegram.pinChatMessage(STAFF_GROUP_ID, sent.message_id, { disable_notification: false });
-  } catch (pinErr) {
-    console.warn('[PIN] Could not pin message — make the bot a group admin with Pin permission:', pinErr.message);
-  }
+// ── Broadcast helper ──────────────────────────────────────────
+async function broadcast(text, md='Markdown') {
+  const sent = await bot.telegram.sendMessage(STAFF_GROUP_ID, text, { parse_mode: md });
+  try { await bot.telegram.pinChatMessage(STAFF_GROUP_ID, sent.message_id); }
+  catch (e) { console.warn('[PIN]', e.message); }
   return sent;
 }
 
-// ─────────────────────────────────────────────
-//  /start & /menu — show control panel
-// ─────────────────────────────────────────────
-bot.start(async (ctx) => {
+// ── Main menu ─────────────────────────────────────────────────
+const MENU_KB = Markup.inlineKeyboard([
+  [Markup.button.callback('📍 Set Liner Location','menu_set'),
+   Markup.button.callback('🗑️ Remove Liner',      'menu_remove')],
+  [Markup.button.callback('📣 Announcement',       'menu_announce'),
+   Markup.button.callback('🗂️ View All Liners',   'menu_view')],
+]);
+const MENU_TXT = '⚓ *TCY Yard Control Panel*\n\nSelect an action:';
+
+bot.start(async ctx => {
   try {
-    if (!isSupervisor(ctx)) {
-      return ctx.reply('👋 Welcome! Just type a liner name (e.g. *CMA*) to find its yard location.', { parse_mode: 'Markdown' });
-    }
-    resetState();
-    await ctx.reply(mainMenuText(), { parse_mode: 'Markdown', ...mainMenuKeyboard() });
-  } catch (err) { console.error('[/start]', err.message); }
+    if (!isSup(ctx)) return ctx.reply('👋 Type a liner name (e.g. *CMA*) to find its location.', {parse_mode:'Markdown'});
+    reset(); await ctx.reply(MENU_TXT, {parse_mode:'Markdown',...MENU_KB});
+  } catch(e){console.error('[/start]',e.message);}
+});
+bot.command('menu', async ctx => {
+  try {
+    if (!isSup(ctx)) return;
+    reset(); await ctx.reply(MENU_TXT, {parse_mode:'Markdown',...MENU_KB});
+  } catch(e){console.error('[/menu]',e.message);}
 });
 
-bot.command('menu', async (ctx) => {
-  try {
-    if (!isSupervisor(ctx)) return;
-    resetState();
-    await ctx.reply(mainMenuText(), { parse_mode: 'Markdown', ...mainMenuKeyboard() });
-  } catch (err) { console.error('[/menu]', err.message); }
+// ── BACK ──────────────────────────────────────────────────────
+bot.action('menu_main', async ctx => {
+  try { await ctx.answerCbQuery(); if(!isSup(ctx))return; reset(); await ctx.editMessageText(MENU_TXT,{parse_mode:'Markdown',...MENU_KB}); }
+  catch(e){console.error('[back]',e.message);}
 });
 
-// ─────────────────────────────────────────────
-//  BUTTON: 📍 Set Liner Location
-// ─────────────────────────────────────────────
-bot.action('menu_set', async (ctx) => {
+// ── SET: step 1 — ask liner name ──────────────────────────────
+bot.action('menu_set', async ctx => {
   try {
-    await ctx.answerCbQuery();
-    if (!isSupervisor(ctx)) return;
-    supState = { action: 'awaiting_liner_name', data: {} };
+    await ctx.answerCbQuery(); if(!isSup(ctx))return;
+    S = {action:'awaiting_liner_name', data:{}};
+    await ctx.editMessageText('📍 *Set Liner Location*\n\nType the *liner name* (e.g. `CMA`, `MSC`):',
+      {parse_mode:'Markdown',...Markup.inlineKeyboard([[Markup.button.callback('← Back','menu_main')]])});
+  } catch(e){console.error('[menu_set]',e.message);}
+});
+
+// ── SET: step 2 — size selection (inline buttons) ─────────────
+bot.action(/^sz_(.+)$/, async ctx => {
+  try {
+    await ctx.answerCbQuery(); if(!isSup(ctx))return;
+    S.data.size   = ctx.match[1];
+    S.action      = 'awaiting_tb';
+    const tbBtns  = Object.keys(TB_SIZES).map(t => Markup.button.callback(t,`tb_${t}`));
     await ctx.editMessageText(
-      '📍 *Set Liner Location*\n\nType the *liner name* (e.g. `CMA`, `MSC`, `LILY`):',
-      { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback('← Back', 'menu_main')]]) }
-    );
-  } catch (err) { console.error('[menu_set]', err.message); }
+      `📍 *${S.data.liner}* · *${sizeLabel(S.data.size)}*\n\nSelect the *terminal block*:`,
+      {parse_mode:'Markdown',...Markup.inlineKeyboard([tbBtns.slice(0,4), tbBtns.slice(4), [Markup.button.callback('← Back','menu_set')]])});
+  } catch(e){console.error('[sz_*]',e.message);}
 });
 
-// ─────────────────────────────────────────────
-//  BUTTON: 🗑️ Remove Liner
-// ─────────────────────────────────────────────
-bot.action('menu_remove', async (ctx) => {
+// ── SET: step 3 — TB selection ────────────────────────────────
+bot.action(/^tb_(.+)$/, async ctx => {
   try {
-    await ctx.answerCbQuery();
-    if (!isSupervisor(ctx)) return;
-    resetState();
-    const db    = readDB();
-    const liners = Object.keys(db);
-
-    if (!liners.length) {
-      return ctx.editMessageText('🗂️ No liners are currently assigned.\n\nNothing to remove.', {
-        ...Markup.inlineKeyboard([[Markup.button.callback('← Back', 'menu_main')]])
-      });
-    }
-
-    // Build one button per liner
-    const rows = [];
-    for (let i = 0; i < liners.length; i += 3) {
-      rows.push(
-        liners.slice(i, i + 3).map(l =>
-          Markup.button.callback(`🗑 ${l} (${db[l].block})`, `del_${l}`)
-        )
-      );
-    }
-    rows.push([Markup.button.callback('← Back', 'menu_main')]);
-
-    await ctx.editMessageText('🗑️ *Remove a Liner*\n\nTap a liner to remove it:', {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard(rows),
-    });
-  } catch (err) { console.error('[menu_remove]', err.message); }
-});
-
-// Handle delete callbacks: del_CMA, del_MSC, etc.
-bot.action(/^del_(.+)$/, async (ctx) => {
-  try {
-    await ctx.answerCbQuery();
-    if (!isSupervisor(ctx)) return;
-    const liner = ctx.match[1];
-    const db    = readDB();
-    delete db[liner];
-    writeDB(db);
-    console.log(`[DEL] ${liner} removed`);
-    await ctx.editMessageText(`✅ *${liner}* has been removed from the yard layout.`, {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('🗑️ Remove Another', 'menu_remove'),
-         Markup.button.callback('← Main Menu',       'menu_main')],
-      ]),
-    });
-  } catch (err) { console.error('[del_*]', err.message); }
-});
-
-// ─────────────────────────────────────────────
-//  BUTTON: 📣 Send Announcement
-// ─────────────────────────────────────────────
-bot.action('menu_announce', async (ctx) => {
-  try {
-    await ctx.answerCbQuery();
-    if (!isSupervisor(ctx)) return;
-    supState = { action: 'awaiting_announce', data: {} };
-    await ctx.editMessageText(
-      '📣 *Send Announcement*\n\nType your announcement message and send it:',
-      { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback('← Back', 'menu_main')]]) }
-    );
-  } catch (err) { console.error('[menu_announce]', err.message); }
-});
-
-// ─────────────────────────────────────────────
-//  BUTTON: 🗂️ View All Liners
-// ─────────────────────────────────────────────
-bot.action('menu_view', async (ctx) => {
-  try {
-    await ctx.answerCbQuery();
-    if (!isSupervisor(ctx)) return;
-    const db     = readDB();
-    const entries = Object.entries(db);
-
-    let text = '🗂️ *Current Yard Layout*\n\n';
-    if (!entries.length) {
-      text += '_No liners assigned yet._';
-    } else {
-      text += entries.map(([l, v]) => `🚢 *${l}* → \`${v.block}\` _(${v.updatedAt})_`).join('\n');
-    }
-
-    await ctx.editMessageText(text, {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Refresh', 'menu_view'),
-         Markup.button.callback('← Main Menu', 'menu_main')],
-      ]),
-    });
-  } catch (err) { console.error('[menu_view]', err.message); }
-});
-
-// ─────────────────────────────────────────────
-//  BUTTON: ← Back to Main Menu
-// ─────────────────────────────────────────────
-bot.action('menu_main', async (ctx) => {
-  try {
-    await ctx.answerCbQuery();
-    if (!isSupervisor(ctx)) return;
-    resetState();
-    await ctx.editMessageText(mainMenuText(), { parse_mode: 'Markdown', ...mainMenuKeyboard() });
-  } catch (err) { console.error('[menu_main]', err.message); }
-});
-
-// ─────────────────────────────────────────────
-//  TB BLOCK SELECTION  (step 2 of set flow)
-// ─────────────────────────────────────────────
-bot.action(/^tb_(.+)$/, async (ctx) => {
-  try {
-    await ctx.answerCbQuery();
-    if (!isSupervisor(ctx)) return;
+    await ctx.answerCbQuery(); if(!isSup(ctx))return;
     const tb    = ctx.match[1];
+    S.data.tb   = tb;
+    S.action    = 'awaiting_bay';
     const count = TB_SIZES[tb];
-    supState.data.tb = tb;
-    supState.action  = 'awaiting_bay';
-
-    // Build bay number buttons in rows of 5
-    const rows = [];
-    for (let i = 1; i <= count; i += 5) {
-      rows.push(
-        Array.from({ length: Math.min(5, count - i + 1) }, (_, j) =>
-          Markup.button.callback(`${i + j}`, `bay_${i + j}`)
-        )
-      );
-    }
-    rows.push([Markup.button.callback('← Back', 'menu_set')]);
-
+    const rows  = [];
+    for (let i=1; i<=count; i+=5) rows.push(Array.from({length:Math.min(5,count-i+1)},(_,j)=>Markup.button.callback(`${i+j}`,`bay_${i+j}`)));
+    rows.push([Markup.button.callback('← Back','menu_set')]);
     await ctx.editMessageText(
-      `📍 *${tb} selected*\n\nNow choose the *bay number*:`,
-      { parse_mode: 'Markdown', ...Markup.inlineKeyboard(rows) }
-    );
-  } catch (err) { console.error('[tb_*]', err.message); }
+      `📍 *${S.data.liner}* · *${sizeLabel(S.data.size)}* · *${tb}*\n\nPick a *bay number*:`,
+      {parse_mode:'Markdown',...Markup.inlineKeyboard(rows)});
+  } catch(e){console.error('[tb_*]',e.message);}
 });
 
-// ─────────────────────────────────────────────
-//  BAY SELECTION  (step 3 of set flow)
-// ─────────────────────────────────────────────
-bot.action(/^bay_(\d+)$/, async (ctx) => {
+// ── SET: step 4 — bay → save & broadcast ─────────────────────
+bot.action(/^bay_(\d+)$/, async ctx => {
   try {
-    await ctx.answerCbQuery();
-    if (!isSupervisor(ctx)) return;
-    const bay   = ctx.match[1];
-    const liner = supState.data.liner;
-    const tb    = supState.data.tb;
-    if (!liner || !tb) {
-      return ctx.answerCbQuery('Session expired. Use /menu to start again.');
-    }
+    await ctx.answerCbQuery(); if(!isSup(ctx))return;
+    const {liner,size,tb} = S.data;
+    if(!liner||!size||!tb) return ctx.answerCbQuery('Session expired. Use /menu.');
+    const bay       = ctx.match[1];
     const block     = `${tb}-${bay}`;
     const updatedAt = dayjs().format('hh:mm A');
     const db        = readDB();
-    db[liner]       = { block, updatedAt };
+    db[makeKey(liner,size)] = {block, updatedAt};
     writeDB(db);
-    resetState();
-    console.log(`[SET] ${liner} → ${block} at ${updatedAt}`);
+    reset();
+    console.log(`[SET] ${liner}|${size} → ${block}`);
 
     await ctx.editMessageText(
-      `✅ *Done!*\n\n🚢 Liner: *${liner}*\n📦 Block: *${block}*\n🕐 Time:  *${updatedAt}*\n\nBroadcasting to staff group…`,
-      { parse_mode: 'Markdown' }
-    );
+      `✅ *Saved!*\n\n🚢 *${liner}* · ${sizeLabel(size)}\n📦 Block: *${block}*\n🕐 Time:  *${updatedAt}*`,
+      {parse_mode:'Markdown'});
 
-    await broadcastAndPin(
-      `📢 *YARD UPDATE* 📢\n\n` +
-      `🚢 *${liner}* containers are now being allocated to zone *${block}*.\n\n` +
-      `All operators unloading barges, please route units accordingly.`
+    await broadcast(
+      `📢 *YARD UPDATE* 📢\n\n🚢 *${liner}* _(${sizeLabel(size)})_ containers → zone *${block}*\n\nAll operators, please route units accordingly.`
     );
-
-    await ctx.reply(mainMenuText(), { parse_mode: 'Markdown', ...mainMenuKeyboard() });
-  } catch (err) { console.error('[bay_*]', err.message); }
+    await ctx.reply(MENU_TXT, {parse_mode:'Markdown',...MENU_KB});
+  } catch(e){console.error('[bay_*]',e.message);}
 });
 
-// ─────────────────────────────────────────────
-//  TEXT MESSAGE HANDLER
-//  Handles both supervisor flow steps & staff search
-// ─────────────────────────────────────────────
-bot.on(message('text'), async (ctx) => {
+// ── REMOVE ────────────────────────────────────────────────────
+bot.action('menu_remove', async ctx => {
+  try {
+    await ctx.answerCbQuery(); if(!isSup(ctx))return; reset();
+    const db   = readDB();
+    const keys = Object.keys(db);
+    if(!keys.length) return ctx.editMessageText('No liners assigned yet.',{...Markup.inlineKeyboard([[Markup.button.callback('← Back','menu_main')]])});
+    const rows = [];
+    for(let i=0;i<keys.length;i+=2) {
+      rows.push(keys.slice(i,i+2).map(k=>{
+        const {liner,size}=parseKey(k);
+        return Markup.button.callback(`🗑 ${liner} · ${sizeLabel(size)} (${db[k].block})`,`del_${k}`);
+      }));
+    }
+    rows.push([Markup.button.callback('← Back','menu_main')]);
+    await ctx.editMessageText('🗑️ *Remove a Liner*\n\nTap to remove:',{parse_mode:'Markdown',...Markup.inlineKeyboard(rows)});
+  } catch(e){console.error('[menu_remove]',e.message);}
+});
+
+bot.action(/^del_(.+)$/, async ctx => {
+  try {
+    await ctx.answerCbQuery(); if(!isSup(ctx))return;
+    const key = ctx.match[1];
+    const {liner,size} = parseKey(key);
+    const db  = readDB();
+    delete db[key];
+    writeDB(db);
+    await ctx.editMessageText(
+      `✅ *${liner} · ${sizeLabel(size)}* removed.`,
+      {parse_mode:'Markdown',...Markup.inlineKeyboard([[Markup.button.callback('🗑 Remove Another','menu_remove'),Markup.button.callback('← Menu','menu_main')]])});
+  } catch(e){console.error('[del_*]',e.message);}
+});
+
+// ── ANNOUNCE ──────────────────────────────────────────────────
+bot.action('menu_announce', async ctx => {
+  try {
+    await ctx.answerCbQuery(); if(!isSup(ctx))return;
+    S = {action:'awaiting_announce',data:{}};
+    await ctx.editMessageText('📣 *Send Announcement*\n\nType your message:',
+      {parse_mode:'Markdown',...Markup.inlineKeyboard([[Markup.button.callback('← Back','menu_main')]])});
+  } catch(e){console.error('[announce]',e.message);}
+});
+
+// ── VIEW ALL ──────────────────────────────────────────────────
+bot.action('menu_view', async ctx => {
+  try {
+    await ctx.answerCbQuery(); if(!isSup(ctx))return;
+    const db      = readDB();
+    const entries = Object.entries(db);
+    let text      = '🗂️ *Current Yard Layout*\n\n';
+    if(!entries.length) { text += '_No liners assigned yet._'; }
+    else {
+      // Group by liner
+      const grouped = {};
+      for(const [k,v] of entries) {
+        const {liner,size} = parseKey(k);
+        if(!grouped[liner]) grouped[liner]=[];
+        grouped[liner].push({size, ...v});
+      }
+      text += Object.entries(grouped).map(([liner,rows])=>
+        `🚢 *${liner}*\n`+rows.map(r=>`  • ${sizeLabel(r.size)} → \`${r.block}\` _(${r.updatedAt})_`).join('\n')
+      ).join('\n\n');
+    }
+    await ctx.editMessageText(text,{parse_mode:'Markdown',...Markup.inlineKeyboard([[Markup.button.callback('🔄 Refresh','menu_view'),Markup.button.callback('← Menu','menu_main')]])});
+  } catch(e){console.error('[view]',e.message);}
+});
+
+// ── TEXT HANDLER (supervisor flow + staff search) ─────────────
+bot.on(message('text'), async ctx => {
   try {
     const text = ctx.message.text.trim();
-    if (text.startsWith('/')) return;
+    if(text.startsWith('/')) return;
 
-    // ── Supervisor multi-step flow ───────────
-    if (isSupervisor(ctx)) {
-
-      if (supState.action === 'awaiting_liner_name') {
-        const liner = text.toUpperCase();
-        supState.data.liner = liner;
-        supState.action     = 'awaiting_tb';
-
-        const tbButtons = Object.keys(TB_SIZES).map(tb =>
-          Markup.button.callback(tb, `tb_${tb}`)
-        );
-        const rows = [tbButtons.slice(0, 4), tbButtons.slice(4), [Markup.button.callback('← Back', 'menu_set')]];
-
+    // Supervisor multi-step
+    if(isSup(ctx)) {
+      if(S.action==='awaiting_liner_name') {
+        S.data.liner = text.toUpperCase();
+        S.action     = 'awaiting_size';
+        const sizeRows = [
+          SIZES.slice(0,2).map(s=>Markup.button.callback(s.label,`sz_${s.id}`)),
+          SIZES.slice(2).map(s=>Markup.button.callback(s.label,`sz_${s.id}`)),
+          [Markup.button.callback('← Back','menu_set')],
+        ];
         await ctx.reply(
-          `🚢 Liner: *${liner}*\n\nNow select the *terminal block*:`,
-          { parse_mode: 'Markdown', ...Markup.inlineKeyboard(rows) }
-        );
+          `🚢 Liner: *${S.data.liner}*\n\nSelect *container size*:`,
+          {parse_mode:'Markdown',...Markup.inlineKeyboard(sizeRows)});
         return;
       }
-
-      if (supState.action === 'awaiting_announce') {
-        const announcement = text;
-        resetState();
-        await broadcastAndPin(announcement, undefined);
-        await ctx.reply('✅ Announcement pinned in staff group!', mainMenuKeyboard());
+      if(S.action==='awaiting_announce') {
+        reset();
+        await broadcast(text, undefined);
+        await ctx.reply('✅ Announcement pinned in staff group!',MENU_KB);
         return;
       }
     }
 
-    // ── Staff liner search ────────────────────
+    // Staff search
     const query = text.toUpperCase();
     const db    = readDB();
+    // Find all entries where liner matches query
+    const matches = Object.entries(db).filter(([k])=>{
+      const {liner} = parseKey(k);
+      return liner === query;
+    });
 
-    if (db[query]) {
-      const { block, updatedAt } = db[query];
-      await ctx.reply(
-        `🔍 *YARD LOCATOR RESULT*\n\n` +
-        `━━━━━━━━━━━━━━━━━━━━\n` +
-        `🚢  Liner:         *${query}*\n` +
-        `📦  Target Zone:   *${block}*\n` +
-        `🕐  Last Updated:  *${updatedAt}*\n` +
-        `━━━━━━━━━━━━━━━━━━━━`,
-        { parse_mode: 'Markdown' }
-      );
+    if(matches.length) {
+      let reply = `🔍 *YARD LOCATOR*\n\n━━━━━━━━━━━━━━━━━\n🚢 Liner: *${query}*\n\n`;
+      reply += matches.map(([k,v])=>{
+        const {size} = parseKey(k);
+        return `📦 *${sizeLabel(size)}* → \`${v.block}\`\n🕐 Updated: _${v.updatedAt}_`;
+      }).join('\n\n');
+      reply += '\n━━━━━━━━━━━━━━━━━';
+      await ctx.reply(reply, {parse_mode:'Markdown'});
     } else {
       await ctx.reply(
-        `❓ Liner *${query}* is not currently assigned to any zone.\n\nPlease check with the supervisor or try again later.`,
-        { parse_mode: 'Markdown' }
-      );
+        `❓ Liner *${query}* is not currently assigned.\n\nPlease check with the supervisor or try again later.`,
+        {parse_mode:'Markdown'});
     }
-  } catch (err) {
-    console.error('[TEXT]', err.message);
-    try { await ctx.reply('❌ Something went wrong. Please try again.'); } catch {}
-  }
+  } catch(e){console.error('[TEXT]',e.message); try{await ctx.reply('❌ Error. Try again.');}catch{}}
 });
 
-// ─────────────────────────────────────────────
-//  Legacy slash commands (still work)
-// ─────────────────────────────────────────────
-bot.command('set', async (ctx) => {
-  try {
-    if (!isSupervisor(ctx)) { await ctx.reply('⛔ Unauthorised.'); return; }
-    const parts = ctx.message.text.trim().split(/\s+/);
-    if (parts.length < 3) { await ctx.reply('⚠️ Usage: /set [LINER] [BLOCK]'); return; }
-    const liner     = parts[1].toUpperCase();
-    const block     = parts[2].toUpperCase();
-    const updatedAt = dayjs().format('hh:mm A');
-    const db        = readDB();
-    db[liner]       = { block, updatedAt };
-    writeDB(db);
-    await ctx.reply(`✅ *${liner}* → *${block}* saved!`, { parse_mode: 'Markdown' });
-    const sent = await bot.telegram.sendMessage(STAFF_GROUP_ID,
-      `📢 *YARD UPDATE* 📢\n\n🚢 *${liner}* containers are now being allocated to zone *${block}*.\n\nAll operators unloading barges, please route units accordingly.`,
-      { parse_mode: 'Markdown' }
-    );
-    await bot.telegram.pinChatMessage(STAFF_GROUP_ID, sent.message_id);
-  } catch (err) { console.error('[/set]', err.message); }
-});
-
-bot.command('announce', async (ctx) => {
-  try {
-    if (!isSupervisor(ctx)) { await ctx.reply('⛔ Unauthorised.'); return; }
-    const raw = ctx.message.text;
-    const idx = raw.indexOf(' ');
-    if (idx === -1) { await ctx.reply('⚠️ Usage: /announce [MESSAGE]'); return; }
-    const announcement = raw.slice(idx).trim();
-    const sent = await bot.telegram.sendMessage(STAFF_GROUP_ID, announcement);
-    await bot.telegram.pinChatMessage(STAFF_GROUP_ID, sent.message_id);
-    await ctx.reply('✅ Announced & pinned.');
-  } catch (err) { console.error('[/announce]', err.message); }
-});
-
-// ─────────────────────────────────────────────
-//  LAUNCH
-// ─────────────────────────────────────────────
+// ── Launch ────────────────────────────────────────────────────
 bot.launch()
-  .then(() => console.log('[BOT] TCY Yard Locator Bot is running…'))
-  .catch((err) => { console.error('[BOT] Failed to launch:', err.message); process.exit(1); });
+  .then(async () => {
+    console.log('[BOT] Running…');
+    // Register commands → shows the blue "Menu" button bottom-left in Telegram
+    await bot.telegram.setMyCommands([
+      { command: 'menu',     description: '⚙️ Open Control Panel' },
+      { command: 'set',      description: '📍 Set liner location (supervisor)' },
+      { command: 'announce', description: '📣 Send announcement (supervisor)' },
+    ]);
+    console.log('[BOT] Commands registered — Menu button active.');
+  })
+  .catch(e=>{console.error('[BOT] Launch failed:',e.message); process.exit(1);});
 
-process.once('SIGINT',  () => { console.log('[BOT] Stopping…'); bot.stop('SIGINT'); });
-process.once('SIGTERM', () => { console.log('[BOT] Stopping…'); bot.stop('SIGTERM'); });
+process.once('SIGINT',  ()=>bot.stop('SIGINT'));
+process.once('SIGTERM', ()=>bot.stop('SIGTERM'));
