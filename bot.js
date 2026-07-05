@@ -85,7 +85,11 @@ function mainMenuText() {
 // ─────────────────────────────────────────────
 async function broadcastAndPin(text, parseMode = 'Markdown') {
   const sent = await bot.telegram.sendMessage(STAFF_GROUP_ID, text, { parse_mode: parseMode });
-  await bot.telegram.pinChatMessage(STAFF_GROUP_ID, sent.message_id, { disable_notification: false });
+  try {
+    await bot.telegram.pinChatMessage(STAFF_GROUP_ID, sent.message_id, { disable_notification: false });
+  } catch (pinErr) {
+    console.warn('[PIN] Could not pin message — make the bot a group admin with Pin permission:', pinErr.message);
+  }
   return sent;
 }
 
