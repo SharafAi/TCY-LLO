@@ -7,6 +7,8 @@ import express           from 'express';
 import { fileURLToPath } from 'url';
 import fs                from 'fs';
 import path              from 'path';
+import crypto            from 'crypto';
+import { execSync }      from 'child_process';
 import { Telegraf }      from 'telegraf';
 import dayjs             from 'dayjs';
 import utc               from 'dayjs/plugin/utc.js';
@@ -23,8 +25,9 @@ const TZ = 'Indian/Maldives';
 // ─────────────────────────────────────────────
 const BOT_TOKEN      = '8825795943:AAHRHbNQRPYct_5tMg2Q4hrpfGOKArVDPFQ';
 const STAFF_GROUP_ID = -5399708931;
-const DASHBOARD_PORT = 3000;
-const DASHBOARD_PASS = 'tcy2024';   // ← change this password
+const DASHBOARD_PORT  = 3000;
+const DASHBOARD_PASS  = 'tcy2024';        // ← change this
+const WEBHOOK_SECRET  = 'tcy-deploy-2024'; // ← set same in GitHub webhook
 
 const DIV = '▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬';
 
@@ -215,7 +218,58 @@ app.post('/api/announce', auth, async (req, res) => {
   }
 });
 
+// ── GitHub Webhook → Auto Deploy ─────────────
+app.post('/api/deploy', express.raw({ type: 'application/json' }), (req, res) => {
+  // Verify GitHub signature
+  const sig = req.headers['x-hub-signature-256'] || '';
+  const expected = 'sha256=' + crypto
+    .createHmac('sha256', WEBHOOK_SECRET)
+    .update(req.body)
+    .digest('hex');
+
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+    console.warn('[DEPLOY] Invalid signature — rejected');
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  const payload = JSON.parse(req.body.toString());
+  const branch  = (payload.ref || '').replace('refs/heads/', '');
+
+  if (branch !== 'main') {
+    console.log(`[DEPLOY] Push to "${branch}" — ignored (only main triggers deploy)`);
+    return res.json({ skipped: true, branch });
+  }
+
+  console.log('[DEPLOY] ✅ Push to main detected — deploying…');
+  res.json({ ok: true, message: 'Deploy started' });
+
+  // Run async so response returns immediately
+  setTimeout(() => {
+    try {
+      const __dir = path.dirname(fileURLToPath(import.meta.url));
+      const opts  = { cwd: __dir, stdio: 'inherit' };
+
+      console.log('[DEPLOY] git pull…');
+      execSync('git pull --ff-only', opts);
+
+      console.log('[DEPLOY] npm install…');
+      execSync('npm install --omit=dev', opts);
+
+      console.log('[DEPLOY] Building webapp…');
+      execSync('cd webapp && npm install && npm run build', opts);
+
+      console.log('[DEPLOY] Restarting PM2…');
+      execSync('pm2 restart all', opts);
+
+      console.log('[DEPLOY] 🚀 Deploy complete!');
+    } catch (err) {
+      console.error('[DEPLOY] ❌ Deploy failed:', err.message);
+    }
+  }, 200);
+});
+
 // ── Health check ─────────────────────────────
+
 app.get('/api/health', (req, res) => {
   const db = readDB();
   const total  = Object.values(db).flat().length;
