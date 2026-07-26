@@ -1,5 +1,3 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-body { font-family: 'Inter', sans-serif; }
+/* Base reset — App.css handles all design */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }

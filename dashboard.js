@@ -1,6 +1,6 @@
 // ============================================================
 //  TCY Port — Admin API + Static File Server  (Express)
-//  Run alongside bot.js via PM2 ecosystem
+//  Timezone: Maldives (UTC+5)   |  version 2.0
 // ============================================================
 
 import express           from 'express';
@@ -9,9 +9,14 @@ import fs                from 'fs';
 import path              from 'path';
 import { Telegraf }      from 'telegraf';
 import dayjs             from 'dayjs';
+import utc               from 'dayjs/plugin/utc.js';
+import timezone          from 'dayjs/plugin/timezone.js';
 import advancedFormat    from 'dayjs/plugin/advancedFormat.js';
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
 dayjs.extend(advancedFormat);
+const TZ = 'Indian/Maldives';
 
 // ─────────────────────────────────────────────
 //  CONFIG  (must match bot.js)
@@ -21,14 +26,31 @@ const STAFF_GROUP_ID = -5399708931;
 const DASHBOARD_PORT = 3000;
 const DASHBOARD_PASS = 'tcy2024';   // ← change this password
 
+const DIV = '▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬';
+
+const SIZES    = [
+  { id:'20FT', label:'20 FT'  },
+  { id:'40FT', label:'40 FT'  },
+  { id:'20RF', label:'20 RF ❄️'  },
+  { id:'40RF', label:'40 RF ❄️'  },
+];
+const sizeLabel = id => SIZES.find(s=>s.id===id)?.label ?? id;
+const sizeEmoji = id => id.includes('RF') ? '❄️' : '📦';
+
 // ─────────────────────────────────────────────
-//  SHARED DB
+//  SHARED DB  (array-entry format)
 // ─────────────────────────────────────────────
 const DB_PATH = './yard_layout.json';
 
 function readDB() {
-  try { return JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); }
-  catch { return {}; }
+  try {
+    const raw = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+    const out = {};
+    for(const [k,v] of Object.entries(raw)){
+      out[k] = Array.isArray(v) ? v : [{ block:v.block, addedAt:0, full:false }];
+    }
+    return out;
+  } catch { return {}; }
 }
 
 function writeDB(data) {
@@ -39,6 +61,9 @@ function writeDB(data) {
 
 if (!fs.existsSync(DB_PATH)) writeDB({});
 
+const makeKey  = (liner, size) => `${liner}|${size}`;
+const parseKey = key => { const [liner,size='ALL']=key.split('|'); return {liner,size}; };
+
 // ─────────────────────────────────────────────
 //  TELEGRAM CLIENT (send-only)
 // ─────────────────────────────────────────────
@@ -46,7 +71,9 @@ const telegram = new Telegraf(BOT_TOKEN).telegram;
 
 async function broadcastAndPin(text, parseMode = 'Markdown') {
   const sent = await telegram.sendMessage(STAFF_GROUP_ID, text, { parse_mode: parseMode });
-  await telegram.pinChatMessage(STAFF_GROUP_ID, sent.message_id, { disable_notification: false });
+  try {
+    await telegram.pinChatMessage(STAFF_GROUP_ID, sent.message_id, { disable_notification: false });
+  } catch(e){ console.warn('[PIN]', e.message); }
   return sent;
 }
 
@@ -57,50 +84,117 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ── Password middleware (write endpoints only) ──
+// ── Auth middleware (write endpoints) ────────
 function auth(req, res, next) {
   const pass = req.headers['x-dashboard-pass'] || req.query.pass;
   if (pass !== DASHBOARD_PASS) return res.status(401).json({ error: 'Unauthorized' });
   next();
 }
 
-// ── PUBLIC: get all liner assignments (staff can read) ──
+// ── PUBLIC: get full layout ─────────────────
 app.get('/api/layout', (req, res) => {
   res.json(readDB());
 });
 
-// ── PROTECTED: set / update a liner ──────────
+// ── PROTECTED: add a block to liner+size ────
 app.post('/api/set', auth, async (req, res) => {
   try {
-    const liner     = (req.body.liner || '').toUpperCase().trim();
-    const block     = (req.body.block || '').toUpperCase().trim();
+    const liner = (req.body.liner || '').toUpperCase().trim();
+    const size  = (req.body.size  || '20FT').toUpperCase().trim();
+    const block = (req.body.block || '').toUpperCase().trim();
     if (!liner || !block) return res.status(400).json({ error: 'liner and block are required' });
 
-    const updatedAt = dayjs().format('hh:mm A');
-    const db        = readDB();
-    db[liner]       = { block, updatedAt };
+    const addedAt = Math.floor(Date.now()/1000);
+    const db      = readDB();
+    const key     = makeKey(liner, size);
+    if (!db[key]) db[key] = [];
+    const isAdditional = db[key].filter(e=>!e.full).length > 0;
+    db[key].push({ block, addedAt, full: false });
     writeDB(db);
 
-    await broadcastAndPin(
-      `📢 *YARD UPDATE* 📢\n\n` +
-      `🚢 *${liner}* containers are now being allocated to zone *${block}*.\n\n` +
-      `All operators unloading barges, please route units accordingly.`
-    );
+    const broadcastText = isAdditional
+      ? `📢 *YARD UPDATE*\n${DIV}\n🚢 *${liner}*  •  ${sizeEmoji(size)} *${sizeLabel(size)}*\n\n🆕 Additional block opened: *${block}*\n\n_All operators, please note the new location._`
+      : `📢 *YARD UPDATE*\n${DIV}\n🚢 *${liner}*  •  ${sizeEmoji(size)} *${sizeLabel(size)}*\n\n📦 Containers routing to block *${block}*\n\n_All operators, route units accordingly._`;
 
-    res.json({ success: true, liner, block, updatedAt });
+    await broadcastAndPin(broadcastText);
+    res.json({ success: true, liner, size, block, addedAt });
   } catch (err) {
     console.error('[DASHBOARD /set]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── PROTECTED: delete a liner ─────────────────
+// ── PROTECTED: mark a block as full ─────────
+app.post('/api/markfull', auth, async (req, res) => {
+  try {
+    const liner = (req.body.liner || '').toUpperCase().trim();
+    const size  = (req.body.size  || '20FT').toUpperCase().trim();
+    const block = (req.body.block || '').toUpperCase().trim();
+    if (!liner || !block) return res.status(400).json({ error: 'liner and block are required' });
+
+    const key = makeKey(liner, size);
+    const db  = readDB();
+    if (!db[key]) return res.status(404).json({ error: 'Key not found' });
+
+    const entry = db[key].find(e => e.block === block);
+    if (!entry) return res.status(404).json({ error: 'Block not found' });
+    if (entry.full) return res.status(400).json({ error: 'Already marked full' });
+
+    entry.full   = true;
+    entry.fullAt = Math.floor(Date.now()/1000);
+    writeDB(db);
+
+    const next = db[key].find(e => e.block !== block && !e.full);
+    let broadcastText =
+      `🔴 *BLOCK FULL*\n${DIV}\n🚢 *${liner}*  •  ${sizeEmoji(size)} *${sizeLabel(size)}*\n\n` +
+      `🔴 Block *${block}* is now *FULL*.\n`;
+    if (next) broadcastText += `\n➡️ Continue to block *${next.block}*\n`;
+    else broadcastText += `\n⚠️ *No additional blocks available.* Contact supervisor.\n`;
+    broadcastText += `\n_All operators, please update accordingly._`;
+
+    await broadcastAndPin(broadcastText);
+    res.json({ success: true, liner, size, block });
+  } catch (err) {
+    console.error('[DASHBOARD /markfull]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PROTECTED: remove a single block entry ───
+app.delete('/api/block', auth, (req, res) => {
+  try {
+    const liner = (req.query.liner || '').toUpperCase().trim();
+    const size  = (req.query.size  || '20FT').toUpperCase().trim();
+    const block = (req.query.block || '').toUpperCase().trim();
+    const key   = makeKey(liner, size);
+    const db    = readDB();
+    if (!db[key]) return res.status(404).json({ error: 'Key not found' });
+    const before = db[key].length;
+    db[key] = db[key].filter(e => e.block !== block);
+    if (!db[key].length) delete db[key];
+    writeDB(db);
+    if (db[key]?.length === before && before > 0) return res.status(404).json({ error: 'Block not found' });
+    res.json({ success: true, deleted: block });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PROTECTED: delete entire liner+size key ──
 app.delete('/api/liner/:liner', auth, (req, res) => {
   try {
     const liner = req.params.liner.toUpperCase();
+    const size  = (req.query.size || '').toUpperCase();
     const db    = readDB();
-    if (!db[liner]) return res.status(404).json({ error: 'Liner not found' });
-    delete db[liner];
+    if (size) {
+      const key = makeKey(liner, size);
+      if (!db[key]) return res.status(404).json({ error: 'Not found' });
+      delete db[key];
+    } else {
+      const keys = Object.keys(db).filter(k => parseKey(k).liner === liner);
+      if (!keys.length) return res.status(404).json({ error: 'Liner not found' });
+      keys.forEach(k => delete db[k]);
+    }
     writeDB(db);
     res.json({ success: true, deleted: liner });
   } catch (err) {
@@ -108,17 +202,32 @@ app.delete('/api/liner/:liner', auth, (req, res) => {
   }
 });
 
-// ── PROTECTED: send announcement ──────────────
+// ── PROTECTED: send announcement ─────────────
 app.post('/api/announce', auth, async (req, res) => {
   try {
     const text = (req.body.message || '').trim();
     if (!text) return res.status(400).json({ error: 'message is required' });
-    await broadcastAndPin(text, undefined);
+    await broadcastAndPin(`📣 *ANNOUNCEMENT*\n${DIV}\n${text}`);
     res.json({ success: true });
   } catch (err) {
     console.error('[DASHBOARD /announce]', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Health check ─────────────────────────────
+app.get('/api/health', (req, res) => {
+  const db = readDB();
+  const total  = Object.values(db).flat().length;
+  const full   = Object.values(db).flat().filter(e=>e.full).length;
+  res.json({
+    status: 'ok',
+    totalBlocks: total,
+    fullBlocks: full,
+    activeBlocks: total - full,
+    timezone: TZ,
+    serverTime: dayjs().tz(TZ).format('YYYY-MM-DD HH:mm:ss'),
+  });
 });
 
 // ── Serve the React webapp (built to /public) ─
@@ -130,12 +239,12 @@ if (fs.existsSync(PUBLIC_DIR)) {
   app.get('*', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 } else {
   app.get('*', (_req, res) =>
-    res.send('<h2>Run <code>cd webapp && npm install && npm run build</code> first.</h2>')
+    res.send('<h2>Run <code>cd webapp &amp;&amp; npm install &amp;&amp; npm run build</code> first.</h2>')
   );
 }
 
 app.listen(DASHBOARD_PORT, () => {
-  console.log(`[DASHBOARD] Running at http://localhost:${DASHBOARD_PORT}`);
+  console.log(`[DASHBOARD] Running at http://localhost:${DASHBOARD_PORT}  (TZ: ${TZ})`);
 });
 
 // ─────────────────────────────────────────────
