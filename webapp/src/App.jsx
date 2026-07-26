@@ -134,9 +134,7 @@ function PasswordModal({ onSuccess, onClose }) {
       <div className="modal-box">
         <div className="modal-glow"/>
         <div className="modal-logo-wrap">
-          <div className="mpl-logo-badge">
-            <img src="/mpl-logo.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
-          </div>
+          <img src="/mpl-logo-transparent.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
         </div>
         <h2 className="modal-title">Supervisor Gateway</h2>
         <p className="modal-sub">Enter authorized dashboard password</p>
@@ -248,8 +246,8 @@ function StaffView({ db, onAdminClick }) {
       {/* Header with official MPL Logo */}
       <header className="top-bar">
         <div className="top-bar-brand">
-          <div className="mpl-logo-badge">
-            <img src="/mpl-logo.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
+          <div className="mpl-logo-wrap">
+            <img src="/mpl-logo-transparent.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
           </div>
           <div className="brand-text-group">
             <span className="brand-org">MALDIVES PORTS LIMITED</span>
@@ -494,8 +492,8 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
       {/* Header */}
       <header className="top-bar">
         <div className="top-bar-brand">
-          <div className="mpl-logo-badge">
-            <img src="/mpl-logo.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
+          <div className="mpl-logo-wrap">
+            <img src="/mpl-logo-transparent.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
           </div>
           <div className="brand-text-group">
             <span className="brand-org">MALDIVES PORTS LIMITED</span>
