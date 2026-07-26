@@ -193,29 +193,162 @@ const SIZE_META = {
   '40RF': { label:'40 RF', color:'#a78bfa', bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.25)', rf:true  },
 }
 
-// ─── Maldives Clock ───────────────────────────────────────────
-function MaldivesClock() {
-  const [timeStr, setTimeStr] = useState('')
-  useEffect(() => {
-    function update() {
-      const now = new Date()
-      const utc = now.getTime() + (now.getTimezoneOffset() * 60000)
-      const mvt = new Date(utc + (3600000 * 5))
-      const hrs = String(mvt.getHours()).padStart(2, '0')
-      const mins = String(mvt.getMinutes()).padStart(2, '0')
-      setTimeStr(`${hrs}:${mins} MVT`)
+function formatBlockDate(addedAt) {
+  if (!addedAt) return 'Initial Yard Setup'
+  const date = new Date(addedAt * 1000)
+  const dateStr = date.toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true
+  })
+  const diffSec = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000))
+  let relStr = ''
+  if (diffSec < 60) relStr = 'Just now'
+  else if (diffSec < 3600) relStr = `${Math.floor(diffSec / 60)}m ago`
+  else if (diffSec < 86400) relStr = `${Math.floor(diffSec / 3600)}h ago`
+  else relStr = `${Math.floor(diffSec / 86400)}d ago`
+
+  return `${dateStr} (${relStr})`
+}
+
+// ─── Block Detail Modal ──────────────────────────────────────
+function BlockDetailModal({ blockData, onClose, password, onRefresh }) {
+  const [copied, setCopied] = useState(false)
+  const [loading, setLoading] = useState(false)
+  if (!blockData) return null
+  const { liner, size, block, addedAt, full } = blockData
+
+  const meta = SIZE_META[size] || { label: size, color: '#22d3ee', rf: false }
+  const tbAccent = getTBAccent(block)
+
+  function handleCopy() {
+    const text = `🚢 ${liner} | ${meta.label} → Block ${block}`
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function handleMarkFull() {
+    if (!password) return
+    setLoading(true)
+    try {
+      await apiFetch('/api/markfull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-dashboard-pass': password },
+        body: JSON.stringify({ liner, size, block })
+      })
+      onRefresh()
+      onClose()
+    } catch {} finally { setLoading(false) }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-box block-detail-modal">
+        <div className="modal-glow" style={{ background: `radial-gradient(ellipse, ${tbAccent}40 0%, transparent 70%)` }} />
+        
+        <div className="detail-modal-top">
+          <div>
+            <span className="detail-liner-name">{liner}</span>
+            <div className="detail-size-sub" style={{ color: meta.color }}>
+              <span className="size-panel-icon">{meta.rf ? <SnowIcon /> : <BoxIcon />}</span>
+              <span>{meta.label}</span>
+              {meta.rf && <span className="rf-tag">REEFER</span>}
+            </div>
+          </div>
+          <button className="del-x" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="detail-block-card" style={{ '--bc': tbAccent, borderColor: `${tbAccent}50`, background: `${tbAccent}15` }}>
+          <div className="detail-block-title">
+            <span className="block-tag-dot" style={{ background: tbAccent }} />
+            <span className="detail-block-num">{block}</span>
+          </div>
+          <span className={`badge ${full ? 'badge--red' : 'badge--green'}`}>
+            {full ? 'FULL' : 'ACTIVE'}
+          </span>
+        </div>
+
+        <div className="detail-info-list">
+          <div className="detail-info-item">
+            <span className="detail-info-label">Assigned / Started</span>
+            <span className="detail-info-val">{formatBlockDate(addedAt)}</span>
+          </div>
+          <div className="detail-info-item">
+            <span className="detail-info-label">Terminal Zone</span>
+            <span className="detail-info-val">{block.split('-')[0]} Yard Section</span>
+          </div>
+        </div>
+
+        <div className="detail-modal-actions">
+          <button className="btn btn--primary w-full" onClick={handleCopy}>
+            {copied ? '✓ Location Copied!' : 'Copy Location Info'}
+          </button>
+          {password && !full && (
+            <button className="btn btn--danger-sm w-full" onClick={handleMarkFull} disabled={loading}>
+              {loading ? <span className="spinner" /> : 'Mark Block as FULL'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Yard Map Overview ────────────────────────────────────────
+function YardMapView({ db, onBlockSelect }) {
+  const tbMap = { TB1:[], TB2:[], TB3:[], TB4:[], TB5:[], TB6:[], TB7:[] }
+  for (const [k, arr] of Object.entries(db)) {
+    const { liner, size } = parseKey(k)
+    for (const e of arr) {
+      const tb = Object.keys(tbMap).find(t => e.block.startsWith(t))
+      if (tb) tbMap[tb].push({ liner, size, ...e })
     }
-    update()
-    const timer = setInterval(update, 10000)
-    return () => clearInterval(timer)
-  }, [])
-  return <span className="mvt-clock">{timeStr}</span>
+  }
+
+  return (
+    <div className="yard-map-grid">
+      {Object.entries(tbMap).map(([tbName, items]) => {
+        const accent = TB_ACCENT[tbName] || '#22d3ee'
+        const activeItems = items.filter(e => !isFull(e))
+        return (
+          <div key={tbName} className="tb-map-card" style={{ '--tbc': accent }}>
+            <div className="tb-map-card-top">
+              <div className="tb-map-title">
+                <span className="tb-map-dot" style={{ background: accent }} />
+                <span className="tb-map-name">{tbName}</span>
+                <span className="tb-map-max">Max {TB_SIZES[tbName]} Bays</span>
+              </div>
+              <span className="chip-count">{activeItems.length} Active</span>
+            </div>
+
+            <div className="tb-map-items">
+              {items.length === 0 ? (
+                <span className="no-blocks-text">No active allocations</span>
+              ) : (
+                items.map((item, idx) => (
+                  <div key={idx}
+                    className={`tb-map-item ${isFull(item) ? 'tb-map-item--full' : ''}`}
+                    onClick={() => onBlockSelect(item)}>
+                    <span className="tb-map-item-liner">{item.liner}</span>
+                    <span className="tb-map-item-block" style={{ color: accent }}>{item.block}</span>
+                    <span className="tb-map-item-size">{item.size}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 // ─── Staff View ───────────────────────────────────────────────
-function StaffView({ db, onAdminClick }) {
+function StaffView({ db, onAdminClick, password, onRefresh }) {
   const [q, setQ] = useState('')
   const [sizeFilter, setSizeFilter] = useState('ALL')
+  const [staffTab, setStaffTab] = useState('locator') // 'locator' | 'yardmap'
+  const [selectedBlock, setSelectedBlock] = useState(null)
   const inputRef = useRef(null)
 
   const grouped = {}
@@ -255,7 +388,6 @@ function StaffView({ db, onAdminClick }) {
           </div>
         </div>
         <div className="top-bar-right">
-          <MaldivesClock/>
           <button className="icon-btn" onClick={onAdminClick} title="Supervisor Gateway">
             <LockIcon/>
           </button>
@@ -264,33 +396,42 @@ function StaffView({ db, onAdminClick }) {
 
       {/* Hero Search */}
       <div className="hero-search">
-        <p className="hero-label">Find container block</p>
-        <div className="search-wrap">
-          <svg className="search-ico" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
-          <input ref={inputRef} type="text" value={q}
-            onChange={e => setQ(e.target.value)}
-            placeholder="Type liner name — CMA, MSC…"
-            className="search-field"
-          />
-          {q && <button className="search-x" onClick={() => { setQ(''); inputRef.current?.focus() }}>✕</button>}
-        </div>
+        {staffTab === 'locator' ? (
+          <>
+            <p className="hero-label">Find container block</p>
+            <div className="search-wrap">
+              <svg className="search-ico" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              <input ref={inputRef} type="text" value={q}
+                onChange={e => setQ(e.target.value)}
+                placeholder="Type liner name — CMA, MSC…"
+                className="search-field"
+              />
+              {q && <button className="search-x" onClick={() => { setQ(''); inputRef.current?.focus() }}>✕</button>}
+            </div>
 
-        {/* Quick Size Filters */}
-        <div className="size-filter-row">
-          <button className={`size-filter-chip ${sizeFilter==='ALL'?'size-filter-chip--active':''}`}
-            onClick={()=>setSizeFilter('ALL')}>
-            <GridIcon/> All Sizes
-          </button>
-          {SIZES.map(s => (
-            <button key={s.id}
-              className={`size-filter-chip ${sizeFilter===s.id?'size-filter-chip--active':''}`}
-              onClick={()=>setSizeFilter(s.id)}>
-              {s.rf ? <SnowIcon/> : <BoxIcon/>} {s.label}
-            </button>
-          ))}
-        </div>
+            {/* Quick Size Filters */}
+            <div className="size-filter-row">
+              <button className={`size-filter-chip ${sizeFilter==='ALL'?'size-filter-chip--active':''}`}
+                onClick={()=>setSizeFilter('ALL')}>
+                <GridIcon/> All Sizes
+              </button>
+              {SIZES.map(s => (
+                <button key={s.id}
+                  className={`size-filter-chip ${sizeFilter===s.id?'size-filter-chip--active':''}`}
+                  onClick={()=>setSizeFilter(s.id)}>
+                  {s.rf ? <SnowIcon/> : <BoxIcon/>} {s.label}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="hero-map-header">
+            <p className="hero-label">Terminal Overview</p>
+            <h2 className="hero-map-title">Yard Section Map (TB1 - TB7)</h2>
+          </div>
+        )}
 
         {/* Mini stats */}
         <div className="mini-stats">
@@ -300,99 +441,131 @@ function StaffView({ db, onAdminClick }) {
         </div>
       </div>
 
-      {/* Results */}
+      {/* Main Content Area */}
       <div className="results-area">
-        {allLiners.length === 0 && (
-          <div className="empty">
-            <div className="empty-ico"><ShipIcon/></div>
-            <p className="empty-t">No active liners</p>
-            <p className="empty-s">Contact supervisor to configure yard blocks</p>
-          </div>
-        )}
-        {allLiners.length > 0 && filtered.length === 0 && (
-          <div className="empty">
-            <div className="empty-ico"><SearchXIcon/></div>
-            <p className="empty-t">No match found</p>
-            <p className="empty-s">No liner matches your search or size filter</p>
-          </div>
-        )}
-
-        <div className="liner-grid">
-          {filtered.map(liner => {
-            const sizes = grouped[liner]
-            const allBlocks = Object.values(sizes).flat()
-            const hasActive = allBlocks.some(e => !isFull(e))
-            return (
-              <div key={liner} className={`liner-card ${!hasActive?'liner-card--dead':''}`}>
-                <div className="liner-card-shine"/>
-                {/* Liner header */}
-                <div className="liner-card-top">
-                  <div className="liner-name-row">
-                    <span className="liner-tag">{liner}</span>
-                    <span className="liner-sub">Shipping Line</span>
-                  </div>
-                  <div className="liner-badges">
-                    {!hasActive && <span className="badge badge--red">ALL FULL</span>}
-                    {hasActive && isNew(allBlocks.find(e=>!isFull(e))) && (
-                      <span className="badge badge--green">NEW</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Size panels */}
-                <div className="size-panels">
-                  {Object.entries(sizes)
-                    .filter(([sizeId]) => sizeFilter==='ALL' || sizeId===sizeFilter)
-                    .map(([sizeId, arr]) => {
-                    const meta = SIZE_META[sizeId] || { label:sizeId, color:'#64748b', bg:'rgba(100,116,139,0.08)', border:'rgba(100,116,139,0.25)', rf:false }
-                    const activeArr  = arr.filter(e => !isFull(e))
-                    const fullArr    = arr.filter(e =>  isFull(e))
-                    return (
-                      <div key={sizeId} className="size-panel"
-                        style={{'--sc': meta.color, '--sbg': meta.bg, '--sborder': meta.border}}>
-                        {/* Size header bar */}
-                        <div className="size-panel-header">
-                          <div className="size-panel-label">
-                            <span className="size-panel-icon">
-                              {meta.rf ? <SnowIcon/> : <BoxIcon/>}
-                            </span>
-                            <span className="size-panel-name">{meta.label}</span>
-                            {meta.rf && <span className="rf-tag">REEFER</span>}
-                          </div>
-                          <span className="size-panel-count">{activeArr.length} active</span>
-                        </div>
-                        {/* Blocks */}
-                        <div className="size-panel-blocks">
-                          {activeArr.length === 0 && fullArr.length === 0 && (
-                            <span className="no-blocks-text">No blocks assigned</span>
-                          )}
-                          {activeArr.map((e,i) => (
-                            <div key={i} className="block-tag block-tag--active" style={{'--bc': getTBAccent(e.block)}}>
-                              <span className="block-tag-dot"/>
-                              <span className="block-tag-name">{e.block}</span>
-                            </div>
-                          ))}
-                          {fullArr.map((e,i) => (
-                            <div key={`f${i}`} className="block-tag block-tag--full">
-                              <span className="block-tag-dot"/>
-                              <span className="block-tag-name">{e.block}</span>
-                              <span className="block-tag-full">FULL</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+        {staffTab === 'yardmap' ? (
+          <YardMapView db={db} onBlockSelect={setSelectedBlock} />
+        ) : (
+          <>
+            {allLiners.length === 0 && (
+              <div className="empty">
+                <div className="empty-ico"><ShipIcon/></div>
+                <p className="empty-t">No active liners</p>
+                <p className="empty-s">Contact supervisor to configure yard blocks</p>
               </div>
-            )
-          })}
-        </div>
+            )}
+            {allLiners.length > 0 && filtered.length === 0 && (
+              <div className="empty">
+                <div className="empty-ico"><SearchXIcon/></div>
+                <p className="empty-t">No match found</p>
+                <p className="empty-s">No liner matches your search or size filter</p>
+              </div>
+            )}
 
-        {filtered.length > 0 && (
-          <p className="results-count">{filtered.length} liner{filtered.length!==1?'s':''} shown</p>
+            <div className="liner-grid">
+              {filtered.map(liner => {
+                const sizes = grouped[liner]
+                const allBlocks = Object.values(sizes).flat()
+                const hasActive = allBlocks.some(e => !isFull(e))
+                return (
+                  <div key={liner} className={`liner-card ${!hasActive?'liner-card--dead':''}`}>
+                    <div className="liner-card-shine"/>
+                    {/* Liner header */}
+                    <div className="liner-card-top">
+                      <div className="liner-name-row">
+                        <span className="liner-tag">{liner}</span>
+                        <span className="liner-sub">Shipping Line</span>
+                      </div>
+                      <div className="liner-badges">
+                        {!hasActive && <span className="badge badge--red">ALL FULL</span>}
+                        {hasActive && isNew(allBlocks.find(e=>!isFull(e))) && (
+                          <span className="badge badge--green">NEW</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Size panels */}
+                    <div className="size-panels">
+                      {Object.entries(sizes)
+                        .filter(([sizeId]) => sizeFilter==='ALL' || sizeId===sizeFilter)
+                        .map(([sizeId, arr]) => {
+                        const meta = SIZE_META[sizeId] || { label:sizeId, color:'#64748b', bg:'rgba(100,116,139,0.08)', border:'rgba(100,116,139,0.25)', rf:false }
+                        const activeArr  = arr.filter(e => !isFull(e))
+                        const fullArr    = arr.filter(e =>  isFull(e))
+                        return (
+                          <div key={sizeId} className="size-panel"
+                            style={{'--sc': meta.color, '--sbg': meta.bg, '--sborder': meta.border}}>
+                            {/* Size header bar */}
+                            <div className="size-panel-header">
+                              <div className="size-panel-label">
+                                <span className="size-panel-icon">
+                                  {meta.rf ? <SnowIcon/> : <BoxIcon/>}
+                                </span>
+                                <span className="size-panel-name">{meta.label}</span>
+                                {meta.rf && <span className="rf-tag">REEFER</span>}
+                              </div>
+                              <span className="size-panel-count">{activeArr.length} active</span>
+                            </div>
+                            {/* Blocks */}
+                            <div className="size-panel-blocks">
+                              {activeArr.length === 0 && fullArr.length === 0 && (
+                                <span className="no-blocks-text">No blocks assigned</span>
+                              )}
+                              {activeArr.map((e,i) => (
+                                <div key={i} className="block-tag block-tag--active" style={{'--bc': getTBAccent(e.block)}}
+                                  onClick={() => setSelectedBlock({ liner, size: sizeId, block: e.block, addedAt: e.addedAt, full: false })}>
+                                  <span className="block-tag-dot"/>
+                                  <span className="block-tag-name">{e.block}</span>
+                                </div>
+                              ))}
+                              {fullArr.map((e,i) => (
+                                <div key={`f${i}`} className="block-tag block-tag--full"
+                                  onClick={() => setSelectedBlock({ liner, size: sizeId, block: e.block, addedAt: e.addedAt, full: true })}>
+                                  <span className="block-tag-dot"/>
+                                  <span className="block-tag-name">{e.block}</span>
+                                  <span className="block-tag-full">FULL</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {filtered.length > 0 && (
+              <p className="results-count">{filtered.length} liner{filtered.length!==1?'s':''} shown</p>
+            )}
+          </>
         )}
       </div>
+
+      {/* Block Details Modal */}
+      {selectedBlock && (
+        <BlockDetailModal
+          blockData={selectedBlock}
+          onClose={() => setSelectedBlock(null)}
+          password={password}
+          onRefresh={onRefresh}
+        />
+      )}
+
+      {/* Bottom Port Tools Dock */}
+      <nav className="bottom-tools-dock">
+        <button className={`dock-btn ${staffTab==='locator'?'dock-btn--active':''}`}
+          onClick={()=>setStaffTab('locator')}>
+          <BoxIcon/>
+          <span>Block Locator</span>
+        </button>
+        <button className={`dock-btn ${staffTab==='yardmap'?'dock-btn--active':''}`}
+          onClick={()=>setStaffTab('yardmap')}>
+          <GridIcon/>
+          <span>Yard Map</span>
+        </button>
+      </nav>
     </div>
   )
 }
@@ -706,7 +879,7 @@ export default function App() {
     <>
       {showModal && <PasswordModal onSuccess={handleSuccess} onClose={() => setShowModal(false)}/>}
       {view==='staff' ? (
-        <StaffView db={db} onAdminClick={handleAdminClick}/>
+        <StaffView db={db} onAdminClick={handleAdminClick} password={password} onRefresh={fetchDB}/>
       ) : (
         <AdminPanel password={password} db={db} onRefresh={fetchDB} onLogout={handleLogout}/>
       )}

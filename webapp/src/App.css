@@ -506,3 +506,102 @@ html, body, #root {
 .empty-t      { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; color: var(--sub2); }
 .empty-s      { font-size: 13px; color: var(--sub); margin-top: 6px; line-height: 1.5; }
 .results-count{ text-align: center; font-size: 12px; color: var(--sub); padding: 16px 0 0; }
+
+/* ─── Block Detail Modal ────────────────────────────── */
+.block-detail-modal {
+  align-items: stretch !important;
+  max-width: 360px !important;
+  padding: 24px 20px !important;
+}
+
+.detail-modal-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.detail-liner-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 22px; font-weight: 700; color: var(--text);
+  line-height: 1.1; display: block;
+}
+.detail-size-sub {
+  display: flex; align-items: center; gap: 6px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px; font-weight: 700; margin-top: 4px;
+}
+
+.detail-block-card {
+  border-radius: 14px; border: 1.5px solid var(--border2);
+  padding: 16px; display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.detail-block-title { display: flex; align-items: center; gap: 10px; }
+.detail-block-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 24px; font-weight: 800; color: var(--text);
+  letter-spacing: .04em;
+}
+
+.detail-info-list {
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px; margin-bottom: 20px;
+}
+.detail-info-item { display: flex; justify-content: space-between; align-items: center; }
+.detail-info-label { font-size: 11px; font-weight: 600; color: var(--sub); text-transform: uppercase; letter-spacing: .06em; }
+.detail-info-val { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; color: var(--text); }
+
+.detail-modal-actions { display: flex; flex-direction: column; gap: 8px; }
+
+/* ─── Yard Map Overview ─────────────────────────────── */
+.hero-map-header { margin-bottom: 6px; }
+.hero-map-title { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; color: var(--text); }
+
+.yard-map-grid { display: flex; flex-direction: column; gap: 12px; max-width: 640px; }
+.tb-map-card {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--r); padding: 14px 16px;
+  border-left: 4px solid var(--tbc);
+}
+.tb-map-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.tb-map-title { display: flex; align-items: center; gap: 8px; }
+.tb-map-dot { width: 8px; height: 8px; border-radius: 50%; }
+.tb-map-name { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 800; color: var(--text); }
+.tb-map-max { font-size: 10px; color: var(--sub); text-transform: uppercase; letter-spacing: .06em; }
+
+.tb-map-items { display: flex; flex-wrap: wrap; gap: 8px; }
+.tb-map-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1px solid var(--border2);
+  padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  transition: transform .15s, border-color .15s;
+}
+.tb-map-item:hover { transform: translateY(-1px); border-color: var(--accent); }
+.tb-map-item--full { opacity: .5; text-decoration: line-through; }
+.tb-map-item-liner { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; color: var(--text); }
+.tb-map-item-block { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 800; }
+.tb-map-item-size  { font-size: 10px; color: var(--sub); }
+
+/* ─── Bottom Port Tools Dock ────────────────────────── */
+.bottom-tools-dock {
+  position: sticky; bottom: 0; left: 0; right: 0; z-index: 40;
+  display: flex; justify-content: center; gap: 12px;
+  padding: 10px 16px max(10px, calc(6px + env(safe-area-inset-bottom, 0px)));
+  background: rgba(8,12,20,.92);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+}
+.dock-btn {
+  flex: 1; max-width: 160px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 14px; border-radius: 12px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--sub2); font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: all .2s;
+}
+.dock-btn:hover { border-color: var(--accent); color: var(--text); }
+.dock-btn--active {
+  background: rgba(34,211,238,.12);
+  border-color: #22d3ee; color: #22d3ee;
+  box-shadow: 0 0 16px rgba(34,211,238,.2);
+}

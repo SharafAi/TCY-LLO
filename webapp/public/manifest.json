@@ -1,6 +1,6 @@
 {
-  "name": "TCY Yard Locator",
-  "short_name": "TCY Yard",
+  "name": "MPL TCY Yard Locator",
+  "short_name": "MPL Yard",
   "description": "Container Yard Block Locator for TCY Port",
   "start_url": "/",
   "display": "standalone",
