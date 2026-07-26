@@ -74,6 +74,14 @@ html, body, #root {
   height: 28px; width: auto; object-fit: contain; display: block;
   filter: drop-shadow(0 2px 8px rgba(34,211,238,0.25));
 }
+.mpl-app-header-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  object-fit: cover;
+  display: block;
+  box-shadow: 0 0 16px rgba(34,211,238,0.3);
+  border: 1px solid rgba(255,255,255,0.15);
+}
 
 .brand-text-group { display: flex; flex-direction: column; justify-content: center; }
 .brand-org {

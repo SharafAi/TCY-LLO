@@ -134,15 +134,16 @@ function PasswordModal({ onSuccess, onClose }) {
       <div className="modal-box">
         <div className="modal-glow"/>
         <div className="modal-logo-wrap">
-          <img src="/mpl-logo-transparent.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
+          <img src="/icon-512.png" alt="MPL Port Locator" className="mpl-app-header-icon" style={{ width: 48, height: 48 }} />
         </div>
         <h2 className="modal-title">Supervisor Gateway</h2>
         <p className="modal-sub">Enter authorized dashboard password</p>
         <input
           type="password" value={val} autoFocus
+          autoComplete="off"
           onChange={e => { setVal(e.target.value); setErr(false) }}
           onKeyDown={e => e.key==='Enter' && submit()}
-          placeholder="••••••••"
+          placeholder="Enter password"
           className={`modal-input ${err ? 'modal-input--err' : ''}`}
         />
         {err && <p className="modal-err">Incorrect password — try again</p>}
@@ -376,11 +377,11 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
 
   return (
     <div className="screen screen--dark">
-      {/* Header with official MPL Logo */}
+      {/* Header with official MPL App Icon */}
       <header className="top-bar">
         <div className="top-bar-brand">
           <div className="mpl-logo-wrap">
-            <img src="/mpl-logo-transparent.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
+            <img src="/icon-512.png" alt="MPL Yard Locator" className="mpl-app-header-icon" />
           </div>
           <div className="brand-text-group">
             <span className="brand-org">MALDIVES PORTS LIMITED</span>
@@ -666,7 +667,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
       <header className="top-bar">
         <div className="top-bar-brand">
           <div className="mpl-logo-wrap">
-            <img src="/mpl-logo-transparent.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
+            <img src="/icon-512.png" alt="MPL Yard Locator" className="mpl-app-header-icon" />
           </div>
           <div className="brand-text-group">
             <span className="brand-org">MALDIVES PORTS LIMITED</span>
@@ -674,7 +675,6 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
           </div>
         </div>
         <div className="top-bar-right">
-          <MaldivesClock/>
           <button className="logout-btn" onClick={onLogout}>Sign Out</button>
         </div>
       </header>
