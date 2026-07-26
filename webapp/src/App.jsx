@@ -182,6 +182,14 @@ function StatCard({ value, label, accent }) {
   )
 }
 
+// ─── Size colour map ──────────────────────────────────────────
+const SIZE_META = {
+  '20FT': { label:'20 FT', color:'#3b82f6', bg:'rgba(59,130,246,0.08)', border:'rgba(59,130,246,0.25)', rf:false },
+  '40FT': { label:'40 FT', color:'#10b981', bg:'rgba(16,185,129,0.08)', border:'rgba(16,185,129,0.25)', rf:false },
+  '20RF': { label:'20 RF', color:'#22d3ee', bg:'rgba(34,211,238,0.08)', border:'rgba(34,211,238,0.25)', rf:true  },
+  '40RF': { label:'40 RF', color:'#a78bfa', bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.25)', rf:true  },
+}
+
 // ─── Staff View ───────────────────────────────────────────────
 function StaffView({ db, onAdminClick }) {
   const [q, setQ] = useState('')
@@ -263,29 +271,66 @@ function StaffView({ db, onAdminClick }) {
             const sizes = grouped[liner]
             const allBlocks = Object.values(sizes).flat()
             const hasActive = allBlocks.some(e => !isFull(e))
-            const firstColor = getTBAccent(allBlocks[0]?.block||'')
             return (
-              <div key={liner} className={`liner-card ${!hasActive?'liner-card--dead':''}`}
-                style={{'--c': hasActive ? firstColor : '#64748b'}}>
+              <div key={liner} className={`liner-card ${!hasActive?'liner-card--dead':''}`}>
                 <div className="liner-card-shine"/>
+                {/* Liner header */}
                 <div className="liner-card-top">
-                  <span className="liner-tag">{liner}</span>
-                  {!hasActive && <span className="badge badge--red">ALL FULL</span>}
-                  {hasActive && isNew(allBlocks.find(e=>!isFull(e))) && (
-                    <span className="badge badge--green">NEW</span>
-                  )}
-                </div>
-                {Object.entries(sizes).map(([size, arr]) => (
-                  <div key={size} className="size-section">
-                    <span className="size-chip">
-                      <span className="size-chip-icon">{SIZES.find(s=>s.id===size)?.rf ? <SnowIcon/> : <BoxIcon/>}</span>
-                      {SIZES.find(s=>s.id===size)?.label||size}
-                    </span>
-                    <div className="pill-row">
-                      {arr.map((e,i) => <BlockPill key={i} block={e.block} full={isFull(e)}/>)}
-                    </div>
+                  <div className="liner-name-row">
+                    <span className="liner-tag">{liner}</span>
+                    <span className="liner-sub">Shipping Line</span>
                   </div>
-                ))}
+                  <div className="liner-badges">
+                    {!hasActive && <span className="badge badge--red">ALL FULL</span>}
+                    {hasActive && isNew(allBlocks.find(e=>!isFull(e))) && (
+                      <span className="badge badge--green">NEW</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Size panels — each clearly separated */}
+                <div className="size-panels">
+                  {Object.entries(sizes).map(([sizeId, arr]) => {
+                    const meta = SIZE_META[sizeId] || { label:sizeId, color:'#64748b', bg:'rgba(100,116,139,0.08)', border:'rgba(100,116,139,0.25)', rf:false }
+                    const activeArr  = arr.filter(e => !isFull(e))
+                    const fullArr    = arr.filter(e =>  isFull(e))
+                    return (
+                      <div key={sizeId} className="size-panel"
+                        style={{'--sc': meta.color, '--sbg': meta.bg, '--sborder': meta.border}}>
+                        {/* Size header bar */}
+                        <div className="size-panel-header">
+                          <div className="size-panel-label">
+                            <span className="size-panel-icon">
+                              {meta.rf ? <SnowIcon/> : <BoxIcon/>}
+                            </span>
+                            <span className="size-panel-name">{meta.label}</span>
+                            {meta.rf && <span className="rf-tag">REEFER</span>}
+                          </div>
+                          <span className="size-panel-count">{activeArr.length} active</span>
+                        </div>
+                        {/* Blocks */}
+                        <div className="size-panel-blocks">
+                          {activeArr.length === 0 && fullArr.length === 0 && (
+                            <span className="no-blocks-text">No blocks assigned</span>
+                          )}
+                          {activeArr.map((e,i) => (
+                            <div key={i} className="block-tag block-tag--active" style={{'--bc': getTBAccent(e.block)}}>
+                              <span className="block-tag-dot"/>
+                              <span className="block-tag-name">{e.block}</span>
+                            </div>
+                          ))}
+                          {fullArr.map((e,i) => (
+                            <div key={`f${i}`} className="block-tag block-tag--full">
+                              <span className="block-tag-dot"/>
+                              <span className="block-tag-name">{e.block}</span>
+                              <span className="block-tag-full">FULL</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )
           })}
@@ -298,6 +343,7 @@ function StaffView({ db, onAdminClick }) {
     </div>
   )
 }
+
 
 // ─── Admin Panel ──────────────────────────────────────────────
 function AdminPanel({ password, db, onRefresh, onLogout }) {
