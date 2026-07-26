@@ -4,10 +4,10 @@ import './App.css'
 // ─── Constants ────────────────────────────────────────────────
 const TB_SIZES = { TB1:10, TB2:16, TB3:16, TB4:10, TB5:30, TB6:40, TB7:40 }
 const SIZES = [
-  { id:'20FT', label:'20 FT',   emoji:'📦' },
-  { id:'40FT', label:'40 FT',   emoji:'📦' },
-  { id:'20RF', label:'20 RF',   emoji:'❄️' },
-  { id:'40RF', label:'40 RF',   emoji:'❄️' },
+  { id:'20FT', label:'20 FT', rf:false },
+  { id:'40FT', label:'40 FT', rf:false },
+  { id:'20RF', label:'20 RF', rf:true  },
+  { id:'40RF', label:'40 RF', rf:true  },
 ]
 const NEW_HOURS = 24
 const TB_ACCENT = {
@@ -33,18 +33,77 @@ async function apiFetch(path, opts={}) {
   return data
 }
 
-// ─── Anchor icon ─────────────────────────────────────────────
+// ─── Icons ───────────────────────────────────────────────────
 const AnchorIcon = () => (
   <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
     <circle cx="12" cy="5" r="2"/>
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v13M5 12H2a10 10 0 0018 0h-3"/>
   </svg>
 )
-
 const LockIcon = () => (
   <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <rect x="5" y="11" width="14" height="10" rx="2"/>
     <path strokeLinecap="round" d="M8 11V7a4 4 0 018 0v4"/>
+  </svg>
+)
+const BoxIcon = () => (
+  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+  </svg>
+)
+const SnowIcon = () => (
+  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07"/>
+  </svg>
+)
+const PlusIcon = () => (
+  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+    <path strokeLinecap="round" d="M12 5v14M5 12h14"/>
+  </svg>
+)
+const AlertIcon = () => (
+  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <circle cx="12" cy="12" r="10"/>
+    <path strokeLinecap="round" d="M12 8v4M12 16h.01"/>
+  </svg>
+)
+const MegaphoneIcon = () => (
+  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+  </svg>
+)
+const GridIcon = () => (
+  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <rect x="3" y="3" width="7" height="7" rx="1"/>
+    <rect x="14" y="3" width="7" height="7" rx="1"/>
+    <rect x="3" y="14" width="7" height="7" rx="1"/>
+    <rect x="14" y="14" width="7" height="7" rx="1"/>
+  </svg>
+)
+const ShipIcon = () => (
+  <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l.5 2a1 1 0 001 .8h15a1 1 0 001-.8l.5-2M7 10h10l1 6H6l1-6zM12 4v6M9 4h6"/>
+  </svg>
+)
+const SearchXIcon = () => (
+  <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 10l4 4m0-4l-4 4"/>
+  </svg>
+)
+const CheckCircleIcon = () => (
+  <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+)
+const TrashIcon = () => (
+  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+  </svg>
+)
+const BanIcon = () => (
+  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <circle cx="12" cy="12" r="10"/>
+    <path strokeLinecap="round" d="M4.93 4.93l14.14 14.14"/>
   </svg>
 )
 
@@ -186,14 +245,14 @@ function StaffView({ db, onAdminClick }) {
       <div className="results-area">
         {allLiners.length === 0 && (
           <div className="empty">
-            <div className="empty-ico">🚢</div>
+            <div className="empty-ico"><ShipIcon/></div>
             <p className="empty-t">No active liners</p>
             <p className="empty-s">Contact the supervisor to configure yard blocks</p>
           </div>
         )}
         {allLiners.length > 0 && filtered.length === 0 && (
           <div className="empty">
-            <div className="empty-ico">🔍</div>
+            <div className="empty-ico"><SearchXIcon/></div>
             <p className="empty-t">No match for "{query}"</p>
             <p className="empty-s">This liner is not currently assigned</p>
           </div>
@@ -219,7 +278,8 @@ function StaffView({ db, onAdminClick }) {
                 {Object.entries(sizes).map(([size, arr]) => (
                   <div key={size} className="size-section">
                     <span className="size-chip">
-                      {size.includes('RF') ? '❄️' : '📦'} {SIZES.find(s=>s.id===size)?.label||size}
+                      <span className="size-chip-icon">{SIZES.find(s=>s.id===size)?.rf ? <SnowIcon/> : <BoxIcon/>}</span>
+                      {SIZES.find(s=>s.id===size)?.label||size}
                     </span>
                     <div className="pill-row">
                       {arr.map((e,i) => <BlockPill key={i} block={e.block} full={isFull(e)}/>)}
@@ -262,7 +322,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
     try {
       await apiFetch('/api/set', { method:'POST', headers:H,
         body: JSON.stringify({ liner:name, size, block:`${tb}-${bay}` }) })
-      showToast(`✅ ${name} · ${size} → ${tb}-${bay} set & pinned!`)
+      showToast(`${name} · ${size} → ${tb}-${bay} set & pinned!`)
       setLiner(''); setTb('TB1'); setBay('1')
       onRefresh()
     } catch(err) { showToast(err.message,'error') }
@@ -275,7 +335,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
     try {
       await apiFetch('/api/markfull', { method:'POST', headers:H,
         body: JSON.stringify({ liner, size, block }) })
-      showToast(`🔴 ${liner} · ${block} marked FULL — staff notified`)
+      showToast(`${liner} · ${block} marked FULL — staff notified`)
       onRefresh()
     } catch(err) { showToast(err.message,'error') }
     finally { setLoading(false) }
@@ -286,7 +346,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
     try {
       await apiFetch(`/api/block?liner=${liner}&size=${size}&block=${block}`,
         { method:'DELETE', headers:H })
-      showToast(`🗑️ ${block} removed`)
+      showToast(`${block} removed`)
       onRefresh()
     } catch(err) { showToast(err.message,'error') }
   }
@@ -298,7 +358,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
     try {
       await apiFetch('/api/announce', { method:'POST', headers:H,
         body: JSON.stringify({ message: announceText }) })
-      showToast('📣 Announcement pinned in staff group!')
+      showToast('Announcement pinned in staff group!')
       setAnnounceText('')
     } catch(err) { showToast(err.message,'error') }
     finally { setLoading(false) }
@@ -316,10 +376,10 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
   const full   = allEntries.filter(e =>  isFull(e))
 
   const TABS = [
-    { id:'set',      icon:'➕', label:'Add Block'  },
-    { id:'full',     icon:'🔴', label:'Mark Full'  },
-    { id:'announce', icon:'📣', label:'Announce'   },
-    { id:'view',     icon:'🗂️', label:'All Blocks' },
+    { id:'set',      Icon: PlusIcon,      label:'Add Block'  },
+    { id:'full',     Icon: BanIcon,       label:'Mark Full'  },
+    { id:'announce', Icon: MegaphoneIcon, label:'Announce'   },
+    { id:'view',     Icon: GridIcon,      label:'All Blocks' },
   ]
 
   return (
@@ -351,7 +411,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         {TABS.map(t => (
           <button key={t.id} className={`tab ${activeTab===t.id?'tab--on':''}`}
             onClick={() => setActiveTab(t.id)}>
-            <span>{t.icon}</span>
+            <span className="tab-icon"><t.Icon/></span>
             <span className="tab-label">{t.label}</span>
           </button>
         ))}
@@ -362,7 +422,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         {/* ── ADD BLOCK ── */}
         {activeTab==='set' && (
           <div className="glass-card">
-            <h2 className="section-title">➕ Add / Update Block</h2>
+            <h2 className="section-title"><PlusIcon/> Add / Update Block</h2>
             <form onSubmit={handleSet} className="form-stack">
               <div className="field">
                 <label className="field-lbl">Liner Name</label>
@@ -378,7 +438,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                     <button type="button" key={s.id}
                       className={`size-btn ${size===s.id?'size-btn--on':''}`}
                       onClick={() => setSize(s.id)}>
-                      <span>{s.emoji}</span>
+                      <span className="size-btn-icon">{s.rf ? <SnowIcon/> : <BoxIcon/>}</span>
                       <span>{s.label}</span>
                     </button>
                   ))}
@@ -407,7 +467,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                 <BlockPill block={`${tb}-${bay}`} full={false} size="lg"/>
               </div>
               <button type="submit" disabled={loading} className="btn btn--primary w-full">
-                {loading ? <span className="spinner"/> : '📢 Set & Broadcast to Staff'}
+                {loading ? <span className="spinner"/> : <><MegaphoneIcon/> Set & Broadcast to Staff</>}
               </button>
             </form>
           </div>
@@ -416,17 +476,17 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         {/* ── MARK FULL ── */}
         {activeTab==='full' && (
           <div className="glass-card">
-            <h2 className="section-title">🔴 Mark Block as Full</h2>
+            <h2 className="section-title"><BanIcon/> Mark Block as Full</h2>
             <p className="section-sub">Staff group is notified automatically when a block is marked full.</p>
             {active.length === 0 ? (
-              <div className="empty-inline">✅ No active blocks — all caught up!</div>
+              <div className="empty-inline"><CheckCircleIcon/> No active blocks — all caught up!</div>
             ) : (
               <div className="entry-list">
                 {active.map((e,i) => (
                   <div key={i} className="entry-row">
                     <div className="entry-meta">
                       <span className="entry-liner">{e.liner}</span>
-                      <span className="entry-size">{e.size.includes('RF')?'❄️':'📦'} {SIZES.find(s=>s.id===e.size)?.label||e.size}</span>
+                      <span className="entry-size"><span className="entry-size-icon">{e.size.includes('RF') ? <SnowIcon/> : <BoxIcon/>}</span> {SIZES.find(s=>s.id===e.size)?.label||e.size}</span>
                     </div>
                     <BlockPill block={e.block} full={false}/>
                     <button disabled={loading}
@@ -444,7 +504,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         {/* ── ANNOUNCE ── */}
         {activeTab==='announce' && (
           <div className="glass-card">
-            <h2 className="section-title">📣 Broadcast Announcement</h2>
+            <h2 className="section-title"><MegaphoneIcon/> Broadcast Announcement</h2>
             <p className="section-sub">Message will be pinned in the staff Telegram group.</p>
             <form onSubmit={handleAnnounce} className="form-stack">
               <textarea value={announceText}
@@ -453,7 +513,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                 rows={5} className="field-inp field-ta"/>
               <button type="submit" disabled={loading || !announceText.trim()}
                 className="btn btn--violet w-full">
-                {loading ? <span className="spinner"/> : '📣 Pin in Staff Group'}
+                {loading ? <span className="spinner"/> : <><MegaphoneIcon/> Pin in Staff Group</>}
               </button>
             </form>
           </div>
@@ -463,7 +523,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         {activeTab==='view' && (
           <div className="glass-card">
             <div className="card-header-row">
-              <h2 className="section-title mb0">🗂️ All Allocations</h2>
+              <h2 className="section-title mb0"><GridIcon/> All Allocations</h2>
               <span className="chip-count">{allEntries.length} blocks</span>
             </div>
             {allEntries.length === 0 ? (
@@ -474,11 +534,11 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                   <div key={i} className={`entry-row ${isFull(e)?'entry-row--full':''}`}>
                     <div className="entry-meta">
                       <span className="entry-liner">{e.liner}</span>
-                      <span className="entry-size">{e.size.includes('RF')?'❄️':'📦'} {SIZES.find(s=>s.id===e.size)?.label||e.size}</span>
+                      <span className="entry-size"><span className="entry-size-icon">{e.size.includes('RF') ? <SnowIcon/> : <BoxIcon/>}</span> {SIZES.find(s=>s.id===e.size)?.label||e.size}</span>
                     </div>
                     <BlockPill block={e.block} full={isFull(e)}/>
                     <button onClick={() => handleDelete(e.liner,e.size,e.block)}
-                      className="del-x" title="Remove">✕</button>
+                      className="del-x" title="Remove"><TrashIcon/></button>
                   </div>
                 ))}
               </div>
