@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
 
 // ─── Constants ────────────────────────────────────────────────
@@ -6,24 +6,21 @@ const TB_SIZES = { TB1:10, TB2:16, TB3:16, TB4:10, TB5:30, TB6:40, TB7:40 }
 const SIZES = [
   { id:'20FT', label:'20 FT',   emoji:'📦' },
   { id:'40FT', label:'40 FT',   emoji:'📦' },
-  { id:'20RF', label:'20 RF ❄️', emoji:'❄️' },
-  { id:'40RF', label:'40 RF ❄️', emoji:'❄️' },
+  { id:'20RF', label:'20 RF',   emoji:'❄️' },
+  { id:'40RF', label:'40 RF',   emoji:'❄️' },
 ]
 const NEW_HOURS = 24
-
-const TB_COLORS = {
-  TB1:'#3b82f6', TB2:'#10b981', TB3:'#8b5cf6',
-  TB4:'#f97316', TB5:'#06b6d4', TB6:'#ef4444', TB7:'#f59e0b',
+const TB_ACCENT = {
+  TB1:'#3b82f6', TB2:'#10b981', TB3:'#a78bfa',
+  TB4:'#fb923c', TB5:'#22d3ee', TB6:'#f43f5e', TB7:'#fbbf24',
 }
 
-function getTBColor(block='') {
-  const tb = Object.keys(TB_COLORS).find(k => block.startsWith(k))
-  return TB_COLORS[tb] || '#64748b'
+function getTBAccent(block='') {
+  const tb = Object.keys(TB_ACCENT).find(k => block.startsWith(k))
+  return TB_ACCENT[tb] || '#64748b'
 }
-
 function isNew(e)  { return (Date.now()/1000 - (e.addedAt||0)) < NEW_HOURS*3600 }
 function isFull(e) { return e.full === true }
-
 function parseKey(key) {
   const [liner, size='ALL'] = key.split('|')
   return { liner, size }
@@ -36,68 +33,101 @@ async function apiFetch(path, opts={}) {
   return data
 }
 
+// ─── Anchor icon ─────────────────────────────────────────────
+const AnchorIcon = () => (
+  <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+    <circle cx="12" cy="5" r="2"/>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v13M5 12H2a10 10 0 0018 0h-3"/>
+  </svg>
+)
+
+const LockIcon = () => (
+  <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <rect x="5" y="11" width="14" height="10" rx="2"/>
+    <path strokeLinecap="round" d="M8 11V7a4 4 0 018 0v4"/>
+  </svg>
+)
+
 // ─── Toast ────────────────────────────────────────────────────
-function Toast({ msg, type }) {
-  return (
-    <div className={`toast toast--${type}`}>
-      {msg}
-    </div>
-  )
+function Toast({ msg, type, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t) }, [onDone])
+  return <div className={`toast toast--${type}`}>{msg}</div>
 }
 
 // ─── Password Modal ───────────────────────────────────────────
 function PasswordModal({ onSuccess, onClose }) {
   const [val, setVal] = useState('')
   const [err, setErr] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   async function submit() {
+    setLoading(true)
     try {
       await apiFetch('/api/layout', { headers: { 'x-dashboard-pass': val } })
       onSuccess(val)
-    } catch {
-      setErr(true); setVal('')
-    }
+    } catch { setErr(true); setVal('') }
+    finally { setLoading(false) }
   }
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
       <div className="modal-box">
-        <div className="modal-icon">🔐</div>
+        <div className="modal-glow"/>
+        <div className="modal-icon-wrap"><AnchorIcon/></div>
         <h2 className="modal-title">Supervisor Access</h2>
-        <p className="modal-sub">Enter your admin password</p>
+        <p className="modal-sub">Enter your dashboard password</p>
         <input
           type="password" value={val} autoFocus
           onChange={e => { setVal(e.target.value); setErr(false) }}
           onKeyDown={e => e.key==='Enter' && submit()}
-          placeholder="Password"
+          placeholder="••••••••"
           className={`modal-input ${err ? 'modal-input--err' : ''}`}
         />
-        {err && <p className="modal-err">Incorrect password</p>}
-        <button className="btn btn--dark w-full" onClick={submit}>Enter</button>
-        <button className="btn btn--ghost w-full mt-2" onClick={onClose}>Cancel</button>
+        {err && <p className="modal-err">Incorrect password — try again</p>}
+        <button className="btn btn--primary w-full" onClick={submit} disabled={loading}>
+          {loading ? <span className="spinner"/> : 'Unlock Panel'}
+        </button>
+        <button className="btn btn--ghost w-full" onClick={onClose}>Cancel</button>
       </div>
     </div>
   )
 }
 
-// ─── Block Badge ──────────────────────────────────────────────
-function BlockBadge({ block, full }) {
-  const color = getTBColor(block)
-  return (
-    <span className={`block-badge ${full ? 'block-badge--full' : ''}`}
-      style={full ? {} : { background: color+'18', borderColor: color+'55', color }}>
-      {full && <span className="block-badge-dot full-dot"/>}
-      {block}
-      {full && <span className="full-label">FULL</span>}
+// ─── Block Pill ───────────────────────────────────────────────
+function BlockPill({ block, full, size='md' }) {
+  const color = getTBAccent(block)
+  if (full) return (
+    <span className={`pill pill--full pill--${size}`}>
+      <span className="pill-dot" style={{background:'#f43f5e'}}/>
+      <span className="pill-text">{block}</span>
+      <span className="pill-tag">FULL</span>
     </span>
+  )
+  return (
+    <span className={`pill pill--${size}`}
+      style={{'--c': color, background:`${color}15`, borderColor:`${color}40`, color}}>
+      <span className="pill-dot" style={{background:color}}/>
+      <span className="pill-text">{block}</span>
+    </span>
+  )
+}
+
+// ─── Stat Card ────────────────────────────────────────────────
+function StatCard({ value, label, accent }) {
+  return (
+    <div className="stat-card" style={{'--a': accent}}>
+      <div className="stat-glow"/>
+      <span className="stat-num">{value}</span>
+      <span className="stat-lbl">{label}</span>
+    </div>
   )
 }
 
 // ─── Staff View ───────────────────────────────────────────────
 function StaffView({ db, onAdminClick }) {
   const [q, setQ] = useState('')
+  const inputRef = useRef(null)
 
-  // Group by liner
   const grouped = {}
   for (const [k, arr] of Object.entries(db)) {
     const { liner, size } = parseKey(k)
@@ -106,88 +136,103 @@ function StaffView({ db, onAdminClick }) {
   }
 
   const allLiners = Object.keys(grouped).sort()
-  const filtered = q.trim()
-    ? allLiners.filter(l => l.includes(q.trim().toUpperCase()))
-    : allLiners
+  const query = q.trim().toUpperCase()
+  const filtered = query ? allLiners.filter(l => l.includes(query)) : allLiners
+
+  const totalBlocks  = Object.values(db).flat().length
+  const activeBlocks = Object.values(db).flat().filter(e=>!isFull(e)).length
+  const fullBlocks   = totalBlocks - activeBlocks
 
   return (
-    <div className="screen">
-      <header className="header">
-        <div className="header-brand">
-          <span className="header-icon">⚓</span>
+    <div className="screen screen--dark">
+      {/* Header */}
+      <header className="top-bar">
+        <div className="top-bar-brand">
+          <div className="brand-logo"><AnchorIcon/></div>
           <div>
-            <h1 className="header-title">TCY YARD LOCATOR</h1>
-            <p className="header-sub">Container Block Finder</p>
+            <h1 className="brand-name">TCY YARD</h1>
+            <p className="brand-sub">Container Locator</p>
           </div>
         </div>
-        <button className="icon-btn" onClick={onAdminClick} title="Supervisor">
-          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-          </svg>
+        <button className="icon-btn" onClick={onAdminClick} title="Supervisor login">
+          <LockIcon/>
         </button>
       </header>
 
-      <div className="search-bar">
-        <svg className="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-        </svg>
-        <input type="text" value={q}
-          onChange={e => setQ(e.target.value)}
-          placeholder="Search liner… e.g. CMA, MSC"
-          className="search-input"
-        />
-        {q && <button className="search-clear" onClick={() => setQ('')}>✕</button>}
+      {/* Hero Search */}
+      <div className="hero-search">
+        <p className="hero-label">Find container block</p>
+        <div className="search-wrap">
+          <svg className="search-ico" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input ref={inputRef} type="text" value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Type liner name — CMA, MSC…"
+            className="search-field"
+          />
+          {q && <button className="search-x" onClick={() => { setQ(''); inputRef.current?.focus() }}>✕</button>}
+        </div>
+
+        {/* Mini stats */}
+        <div className="mini-stats">
+          <span className="mini-stat"><span className="mini-dot" style={{background:'#22d3ee'}}/>{allLiners.length} liners</span>
+          <span className="mini-stat"><span className="mini-dot" style={{background:'#10b981'}}/>{activeBlocks} active</span>
+          <span className="mini-stat"><span className="mini-dot" style={{background:'#f43f5e'}}/>{fullBlocks} full</span>
+        </div>
       </div>
 
-      <div className="content">
+      {/* Results */}
+      <div className="results-area">
         {allLiners.length === 0 && (
-          <div className="empty-state">
-            <div className="empty-icon">🚢</div>
-            <p className="empty-title">No active liners configured</p>
-            <p className="empty-sub">Please contact the supervisor</p>
+          <div className="empty">
+            <div className="empty-ico">🚢</div>
+            <p className="empty-t">No active liners</p>
+            <p className="empty-s">Contact the supervisor to configure yard blocks</p>
           </div>
         )}
         {allLiners.length > 0 && filtered.length === 0 && (
-          <div className="empty-state">
-            <div className="empty-icon">🔍</div>
-            <p className="empty-title">No match for "{q.toUpperCase()}"</p>
-            <p className="empty-sub">This liner is not currently assigned</p>
+          <div className="empty">
+            <div className="empty-ico">🔍</div>
+            <p className="empty-t">No match for "{query}"</p>
+            <p className="empty-s">This liner is not currently assigned</p>
           </div>
         )}
 
-        {filtered.map(liner => {
-          const sizes = grouped[liner]
-          const allBlocks = Object.values(sizes).flat()
-          const hasActive = allBlocks.some(e => !isFull(e))
-          return (
-            <div key={liner} className={`liner-card ${!hasActive ? 'liner-card--allfull' : ''}`}>
-              <div className="liner-card-header">
-                <span className="liner-name">{liner}</span>
-                {!hasActive && <span className="full-chip">ALL FULL</span>}
-              </div>
-              {Object.entries(sizes).map(([size, arr]) => (
-                <div key={size} className="size-row">
-                  <span className="size-label">
-                    {size.includes('RF') ? '❄️' : '📦'} {SIZES.find(s=>s.id===size)?.label || size}
-                  </span>
-                  <div className="block-list">
-                    {arr.map((e, i) => (
-                      <div key={i} className="block-item">
-                        <BlockBadge block={e.block} full={isFull(e)} />
-                        {isNew(e) && !isFull(e) && <span className="new-chip">NEW</span>}
-                      </div>
-                    ))}
-                  </div>
+        <div className="liner-grid">
+          {filtered.map(liner => {
+            const sizes = grouped[liner]
+            const allBlocks = Object.values(sizes).flat()
+            const hasActive = allBlocks.some(e => !isFull(e))
+            const firstColor = getTBAccent(allBlocks[0]?.block||'')
+            return (
+              <div key={liner} className={`liner-card ${!hasActive?'liner-card--dead':''}`}
+                style={{'--c': hasActive ? firstColor : '#64748b'}}>
+                <div className="liner-card-shine"/>
+                <div className="liner-card-top">
+                  <span className="liner-tag">{liner}</span>
+                  {!hasActive && <span className="badge badge--red">ALL FULL</span>}
+                  {hasActive && isNew(allBlocks.find(e=>!isFull(e))) && (
+                    <span className="badge badge--green">NEW</span>
+                  )}
                 </div>
-              ))}
-            </div>
-          )
-        })}
+                {Object.entries(sizes).map(([size, arr]) => (
+                  <div key={size} className="size-section">
+                    <span className="size-chip">
+                      {size.includes('RF') ? '❄️' : '📦'} {SIZES.find(s=>s.id===size)?.label||size}
+                    </span>
+                    <div className="pill-row">
+                      {arr.map((e,i) => <BlockPill key={i} block={e.block} full={isFull(e)}/>)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
 
         {filtered.length > 0 && (
-          <p className="result-count">{filtered.length} liner{filtered.length !== 1 ? 's' : ''} shown</p>
+          <p className="results-count">{filtered.length} liner{filtered.length!==1?'s':''} shown</p>
         )}
       </div>
     </div>
@@ -196,57 +241,54 @@ function StaffView({ db, onAdminClick }) {
 
 // ─── Admin Panel ──────────────────────────────────────────────
 function AdminPanel({ password, db, onRefresh, onLogout }) {
-  const [liner,       setLiner]       = useState('')
-  const [size,        setSize]        = useState('20FT')
-  const [tb,          setTb]          = useState('TB1')
-  const [bay,         setBay]         = useState('1')
-  const [loading,     setLoading]     = useState(false)
-  const [toast,       setToast]       = useState(null)
-  const [announceText,setAnnounceText]= useState('')
-  const [activeTab,   setActiveTab]   = useState('set') // 'set' | 'full' | 'announce'
+  const [liner,        setLiner]        = useState('')
+  const [size,         setSize]         = useState('20FT')
+  const [tb,           setTb]           = useState('TB1')
+  const [bay,          setBay]          = useState('1')
+  const [loading,      setLoading]      = useState(false)
+  const [toast,        setToast]        = useState(null)
+  const [announceText, setAnnounceText] = useState('')
+  const [activeTab,    setActiveTab]    = useState('set')
 
-  function showToast(msg, type='success') {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3500)
-  }
+  function showToast(msg, type='success') { setToast({ msg, type }) }
 
-  const authHeaders = { 'Content-Type':'application/json', 'x-dashboard-pass': password }
+  const H = { 'Content-Type':'application/json', 'x-dashboard-pass': password }
 
   async function handleSet(e) {
     e.preventDefault()
     const name = liner.trim().toUpperCase()
     if (!name) return
-    const block = `${tb}-${bay}`
     setLoading(true)
     try {
-      await apiFetch('/api/set', { method:'POST', headers: authHeaders,
-        body: JSON.stringify({ liner: name, size, block }) })
-      showToast(`✅ ${name} · ${size} → ${block} set & pinned!`)
+      await apiFetch('/api/set', { method:'POST', headers:H,
+        body: JSON.stringify({ liner:name, size, block:`${tb}-${bay}` }) })
+      showToast(`✅ ${name} · ${size} → ${tb}-${bay} set & pinned!`)
       setLiner(''); setTb('TB1'); setBay('1')
       onRefresh()
-    } catch (err) { showToast(err.message, 'error') }
+    } catch(err) { showToast(err.message,'error') }
     finally { setLoading(false) }
   }
 
   async function handleMarkFull(liner, size, block) {
+    if (!confirm(`Mark ${liner} · ${block} as FULL?\nThis will notify the staff group.`)) return
     setLoading(true)
     try {
-      await apiFetch('/api/markfull', { method:'POST', headers: authHeaders,
+      await apiFetch('/api/markfull', { method:'POST', headers:H,
         body: JSON.stringify({ liner, size, block }) })
-      showToast(`🔴 ${liner} · ${block} marked as FULL`)
+      showToast(`🔴 ${liner} · ${block} marked FULL — staff notified`)
       onRefresh()
-    } catch (err) { showToast(err.message, 'error') }
+    } catch(err) { showToast(err.message,'error') }
     finally { setLoading(false) }
   }
 
   async function handleDelete(liner, size, block) {
-    if (!confirm(`Remove block ${block} for ${liner}?`)) return
+    if (!confirm(`Remove block ${block} from ${liner}?`)) return
     try {
       await apiFetch(`/api/block?liner=${liner}&size=${size}&block=${block}`,
-        { method:'DELETE', headers: authHeaders })
+        { method:'DELETE', headers:H })
       showToast(`🗑️ ${block} removed`)
       onRefresh()
-    } catch (err) { showToast(err.message, 'error') }
+    } catch(err) { showToast(err.message,'error') }
   }
 
   async function handleAnnounce(e) {
@@ -254,148 +296,142 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
     if (!announceText.trim()) return
     setLoading(true)
     try {
-      await apiFetch('/api/announce', { method:'POST', headers: authHeaders,
+      await apiFetch('/api/announce', { method:'POST', headers:H,
         body: JSON.stringify({ message: announceText }) })
-      showToast('📣 Announcement pinned!')
+      showToast('📣 Announcement pinned in staff group!')
       setAnnounceText('')
-    } catch (err) { showToast(err.message, 'error') }
+    } catch(err) { showToast(err.message,'error') }
     finally { setLoading(false) }
   }
 
   const bayCount = TB_SIZES[tb]
 
-  // Flatten db for display
+  // Flatten DB
   const allEntries = []
   for (const [k, arr] of Object.entries(db)) {
     const { liner: l, size: s } = parseKey(k)
-    for (const e of arr) allEntries.push({ liner: l, size: s, ...e })
+    for (const e of arr) allEntries.push({ liner:l, size:s, ...e })
   }
-  const activeEntries = allEntries.filter(e => !isFull(e))
-  const fullEntries   = allEntries.filter(e =>  isFull(e))
+  const active = allEntries.filter(e => !isFull(e))
+  const full   = allEntries.filter(e =>  isFull(e))
 
-  const stats = {
-    total:  allEntries.length,
-    active: activeEntries.length,
-    full:   fullEntries.length,
-  }
+  const TABS = [
+    { id:'set',      icon:'➕', label:'Add Block'  },
+    { id:'full',     icon:'🔴', label:'Mark Full'  },
+    { id:'announce', icon:'📣', label:'Announce'   },
+    { id:'view',     icon:'🗂️', label:'All Blocks' },
+  ]
 
   return (
-    <div className="screen">
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
+    <div className="screen screen--dark">
+      {toast && <Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
 
-      <header className="header">
-        <div className="header-brand">
-          <span className="header-icon">⚙️</span>
+      {/* Header */}
+      <header className="top-bar">
+        <div className="top-bar-brand">
+          <div className="brand-logo brand-logo--gold"><AnchorIcon/></div>
           <div>
-            <h1 className="header-title">ADMIN PANEL</h1>
-            <p className="header-sub">Supervisor Control</p>
+            <h1 className="brand-name">ADMIN</h1>
+            <p className="brand-sub">Supervisor Control</p>
           </div>
         </div>
-        <button className="btn btn--outline-sm" onClick={onLogout}>Log Out</button>
+        <button className="logout-btn" onClick={onLogout}>Sign Out</button>
       </header>
 
       {/* Stats */}
-      <div className="stats-row">
-        <div className="stat-card">
-          <span className="stat-num">{stats.total}</span>
-          <span className="stat-lbl">Total Blocks</span>
-        </div>
-        <div className="stat-card stat-card--green">
-          <span className="stat-num">{stats.active}</span>
-          <span className="stat-lbl">Active</span>
-        </div>
-        <div className="stat-card stat-card--red">
-          <span className="stat-num">{stats.full}</span>
-          <span className="stat-lbl">Full</span>
-        </div>
+      <div className="stats-strip">
+        <StatCard value={allEntries.length} label="Total"  accent="#22d3ee"/>
+        <StatCard value={active.length}     label="Active" accent="#10b981"/>
+        <StatCard value={full.length}       label="Full"   accent="#f43f5e"/>
+        <StatCard value={Object.keys(db).map(k=>parseKey(k).liner).filter((v,i,a)=>a.indexOf(v)===i).length} label="Liners" accent="#a78bfa"/>
       </div>
 
       {/* Tabs */}
-      <div className="tab-bar">
-        {[['set','➕ Add Block'],['full','🔴 Mark Full'],['announce','📣 Announce']].map(([id,label])=>(
-          <button key={id} className={`tab-btn ${activeTab===id?'tab-btn--active':''}`}
-            onClick={()=>setActiveTab(id)}>{label}</button>
+      <div className="tab-strip">
+        {TABS.map(t => (
+          <button key={t.id} className={`tab ${activeTab===t.id?'tab--on':''}`}
+            onClick={() => setActiveTab(t.id)}>
+            <span>{t.icon}</span>
+            <span className="tab-label">{t.label}</span>
+          </button>
         ))}
       </div>
 
-      <div className="content">
+      <div className="admin-body">
 
-        {/* ── ADD BLOCK TAB ── */}
+        {/* ── ADD BLOCK ── */}
         {activeTab==='set' && (
-          <div className="card">
-            <h2 className="card-title">➕ Add / Update Block</h2>
-            <form onSubmit={handleSet} className="form">
+          <div className="glass-card">
+            <h2 className="section-title">➕ Add / Update Block</h2>
+            <form onSubmit={handleSet} className="form-stack">
               <div className="field">
-                <label className="field-label">Liner Name</label>
+                <label className="field-lbl">Liner Name</label>
                 <input value={liner}
                   onChange={e => setLiner(e.target.value.toUpperCase())}
                   placeholder="e.g. CMA, MSC, LILY"
-                  className="field-input" required />
+                  className="field-inp" required />
               </div>
               <div className="field">
-                <label className="field-label">Container Size</label>
+                <label className="field-lbl">Container Size</label>
                 <div className="size-grid">
                   {SIZES.map(s => (
                     <button type="button" key={s.id}
-                      className={`size-opt ${size===s.id ? 'size-opt--active' : ''}`}
+                      className={`size-btn ${size===s.id?'size-btn--on':''}`}
                       onClick={() => setSize(s.id)}>
-                      {s.emoji} {s.label}
+                      <span>{s.emoji}</span>
+                      <span>{s.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="grid-2">
+              <div className="two-col">
                 <div className="field">
-                  <label className="field-label">Terminal Block</label>
+                  <label className="field-lbl">Terminal Block</label>
                   <select value={tb} onChange={e => { setTb(e.target.value); setBay('1') }}
-                    className="field-input">
+                    className="field-inp field-sel">
                     {Object.keys(TB_SIZES).map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
                 <div className="field">
-                  <label className="field-label">Bay Number</label>
+                  <label className="field-lbl">Bay Number</label>
                   <select value={bay} onChange={e => setBay(e.target.value)}
-                    className="field-input">
-                    {Array.from({ length: bayCount }, (_, i) => (
+                    className="field-inp field-sel">
+                    {Array.from({ length: bayCount }, (_,i) => (
                       <option key={i+1} value={i+1}>{i+1}</option>
                     ))}
                   </select>
                 </div>
               </div>
-              <div className="preview-row">
-                <span className="preview-label">Selected block:</span>
-                <BlockBadge block={`${tb}-${bay}`} full={false} />
+              <div className="preview-box">
+                <span className="preview-lbl">Preview block:</span>
+                <BlockPill block={`${tb}-${bay}`} full={false} size="lg"/>
               </div>
-              <button type="submit" disabled={loading} className="btn btn--dark w-full">
-                {loading ? 'Saving…' : '📢 Set & Broadcast to Group'}
+              <button type="submit" disabled={loading} className="btn btn--primary w-full">
+                {loading ? <span className="spinner"/> : '📢 Set & Broadcast to Staff'}
               </button>
             </form>
           </div>
         )}
 
-        {/* ── MARK FULL TAB ── */}
+        {/* ── MARK FULL ── */}
         {activeTab==='full' && (
-          <div className="card">
-            <h2 className="card-title">🔴 Mark Block as Full</h2>
-            {activeEntries.length === 0 ? (
-              <p className="empty-sub" style={{textAlign:'center',padding:'2rem 0'}}>
-                No active blocks to mark as full.
-              </p>
+          <div className="glass-card">
+            <h2 className="section-title">🔴 Mark Block as Full</h2>
+            <p className="section-sub">Staff group is notified automatically when a block is marked full.</p>
+            {active.length === 0 ? (
+              <div className="empty-inline">✅ No active blocks — all caught up!</div>
             ) : (
-              <div className="block-table">
-                {activeEntries.map((e, i) => (
-                  <div key={i} className="block-row">
-                    <div className="block-row-info">
-                      <span className="block-row-liner">{e.liner}</span>
-                      <span className="block-row-size">
-                        {e.size.includes('RF')?'❄️':'📦'} {SIZES.find(s=>s.id===e.size)?.label||e.size}
-                      </span>
+              <div className="entry-list">
+                {active.map((e,i) => (
+                  <div key={i} className="entry-row">
+                    <div className="entry-meta">
+                      <span className="entry-liner">{e.liner}</span>
+                      <span className="entry-size">{e.size.includes('RF')?'❄️':'📦'} {SIZES.find(s=>s.id===e.size)?.label||e.size}</span>
                     </div>
-                    <BlockBadge block={e.block} full={false} />
-                    <button
-                      onClick={() => handleMarkFull(e.liner, e.size, e.block)}
-                      disabled={loading}
-                      className="btn btn--red-sm">
+                    <BlockPill block={e.block} full={false}/>
+                    <button disabled={loading}
+                      onClick={() => handleMarkFull(e.liner,e.size,e.block)}
+                      className="btn btn--danger-sm">
                       Mark Full
                     </button>
                   </div>
@@ -405,58 +441,61 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
           </div>
         )}
 
-        {/* ── ANNOUNCE TAB ── */}
+        {/* ── ANNOUNCE ── */}
         {activeTab==='announce' && (
-          <div className="card">
-            <h2 className="card-title">📣 Send Announcement</h2>
-            <form onSubmit={handleAnnounce} className="form">
+          <div className="glass-card">
+            <h2 className="section-title">📣 Broadcast Announcement</h2>
+            <p className="section-sub">Message will be pinned in the staff Telegram group.</p>
+            <form onSubmit={handleAnnounce} className="form-stack">
               <textarea value={announceText}
                 onChange={e => setAnnounceText(e.target.value)}
                 placeholder="Type your announcement…"
-                rows={4} className="field-input field-textarea" />
+                rows={5} className="field-inp field-ta"/>
               <button type="submit" disabled={loading || !announceText.trim()}
                 className="btn btn--violet w-full">
-                📣 Pin in Staff Group
+                {loading ? <span className="spinner"/> : '📣 Pin in Staff Group'}
               </button>
             </form>
           </div>
         )}
 
-        {/* ── CURRENT ALLOCATIONS ── */}
-        <div className="card">
-          <div className="card-header">
-            <h2 className="card-title mb-0">🗂️ Current Allocations</h2>
-            <span className="chip">{allEntries.length} blocks</span>
-          </div>
-          {allEntries.length === 0 ? (
-            <p className="empty-sub" style={{textAlign:'center',padding:'2rem 0'}}>No blocks added yet.</p>
-          ) : (
-            <div className="alloc-list">
-              {allEntries.map((e, i) => (
-                <div key={i} className={`alloc-row ${isFull(e)?'alloc-row--full':''}`}>
-                  <div className="alloc-info">
-                    <span className="alloc-liner">{e.liner}</span>
-                    <span className="alloc-size">{e.size.includes('RF')?'❄️':'📦'} {SIZES.find(s=>s.id===e.size)?.label||e.size}</span>
-                  </div>
-                  <BlockBadge block={e.block} full={isFull(e)} />
-                  <button onClick={() => handleDelete(e.liner, e.size, e.block)}
-                    className="del-btn" title="Remove">✕</button>
-                </div>
-              ))}
+        {/* ── VIEW ALL ── */}
+        {activeTab==='view' && (
+          <div className="glass-card">
+            <div className="card-header-row">
+              <h2 className="section-title mb0">🗂️ All Allocations</h2>
+              <span className="chip-count">{allEntries.length} blocks</span>
             </div>
-          )}
-        </div>
+            {allEntries.length === 0 ? (
+              <div className="empty-inline">No blocks configured yet.</div>
+            ) : (
+              <div className="entry-list">
+                {allEntries.map((e,i) => (
+                  <div key={i} className={`entry-row ${isFull(e)?'entry-row--full':''}`}>
+                    <div className="entry-meta">
+                      <span className="entry-liner">{e.liner}</span>
+                      <span className="entry-size">{e.size.includes('RF')?'❄️':'📦'} {SIZES.find(s=>s.id===e.size)?.label||e.size}</span>
+                    </div>
+                    <BlockPill block={e.block} full={isFull(e)}/>
+                    <button onClick={() => handleDelete(e.liner,e.size,e.block)}
+                      className="del-x" title="Remove">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-// ─── Root App ─────────────────────────────────────────────────
+// ─── Root ─────────────────────────────────────────────────────
 export default function App() {
-  const [db,           setDb]           = useState({})
-  const [view,         setView]         = useState('staff')
-  const [showPassModal,setShowPassModal] = useState(false)
-  const [password,     setPassword]     = useState(sessionStorage.getItem('tcy-admin-pass') || '')
+  const [db,            setDb]           = useState({})
+  const [view,          setView]         = useState('staff')
+  const [showModal,     setShowModal]    = useState(false)
+  const [password,      setPassword]     = useState(sessionStorage.getItem('tcy-pass')||'')
 
   const fetchDB = useCallback(async () => {
     try { setDb(await apiFetch('/api/layout')) } catch {}
@@ -468,39 +507,26 @@ export default function App() {
     return () => clearInterval(id)
   }, [fetchDB])
 
-  function handleAdminSuccess(pass) {
+  function handleSuccess(pass) {
     setPassword(pass)
-    sessionStorage.setItem('tcy-admin-pass', pass)
-    setShowPassModal(false)
+    sessionStorage.setItem('tcy-pass', pass)
+    setShowModal(false)
     setView('admin')
   }
 
   function handleLogout() {
     setPassword('')
-    sessionStorage.removeItem('tcy-admin-pass')
+    sessionStorage.removeItem('tcy-pass')
     setView('staff')
   }
 
   return (
     <>
-      {showPassModal && (
-        <PasswordModal
-          onSuccess={handleAdminSuccess}
-          onClose={() => setShowPassModal(false)}
-        />
-      )}
-      {view === 'staff' ? (
-        <StaffView
-          db={db}
-          onAdminClick={() => password ? setView('admin') : setShowPassModal(true)}
-        />
+      {showModal && <PasswordModal onSuccess={handleSuccess} onClose={() => setShowModal(false)}/>}
+      {view==='staff' ? (
+        <StaffView db={db} onAdminClick={() => password ? setView('admin') : setShowModal(true)}/>
       ) : (
-        <AdminPanel
-          password={password}
-          db={db}
-          onRefresh={fetchDB}
-          onLogout={handleLogout}
-        />
+        <AdminPanel password={password} db={db} onRefresh={fetchDB} onLogout={handleLogout}/>
       )}
     </>
   )
