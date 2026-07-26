@@ -134,7 +134,7 @@ function PasswordModal({ onSuccess, onClose }) {
       <div className="modal-box">
         <div className="modal-glow"/>
         <div className="modal-logo-wrap">
-          <img src="/icon-512.png" alt="MPL Port Locator" className="mpl-app-header-icon" style={{ width: 48, height: 48 }} />
+          <img src="/mpl-logo-transparent.png" alt="Maldives Ports Limited" className="mpl-logo-img" style={{ height: 40 }} />
         </div>
         <h2 className="modal-title">Supervisor Gateway</h2>
         <p className="modal-sub">Enter authorized dashboard password</p>
@@ -377,11 +377,11 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
 
   return (
     <div className="screen screen--dark">
-      {/* Header with official MPL App Icon */}
+      {/* Header with official MPL Logo */}
       <header className="top-bar">
         <div className="top-bar-brand">
           <div className="mpl-logo-wrap">
-            <img src="/icon-512.png" alt="MPL Yard Locator" className="mpl-app-header-icon" />
+            <img src="/mpl-logo-transparent.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
           </div>
           <div className="brand-text-group">
             <span className="brand-org">MALDIVES PORTS LIMITED</span>
@@ -582,6 +582,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
   const [toast,        setToast]        = useState(null)
   const [announceText, setAnnounceText] = useState('')
   const [activeTab,    setActiveTab]    = useState('set')
+  const [adminFilter,  setAdminFilter]  = useState('')
 
   function showToast(msg, type='success') { setToast({ msg, type }) }
   function handleErr(err) {
@@ -652,11 +653,30 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
   const active = allEntries.filter(e => !isFull(e))
   const full   = allEntries.filter(e =>  isFull(e))
 
+  const filterQuery = adminFilter.trim().toUpperCase()
+
+  const filteredActive = active.filter(e => {
+    if (!filterQuery) return true
+    return e.liner.includes(filterQuery) || e.block.includes(filterQuery) || e.size.includes(filterQuery)
+  })
+
+  const filteredAll = allEntries.filter(e => {
+    if (!filterQuery) return true
+    return e.liner.includes(filterQuery) || e.block.includes(filterQuery) || e.size.includes(filterQuery)
+  })
+
+  // Group active blocks by liner
+  const activeGroupedByLiner = {}
+  for (const item of filteredActive) {
+    if (!activeGroupedByLiner[item.liner]) activeGroupedByLiner[item.liner] = []
+    activeGroupedByLiner[item.liner].push(item)
+  }
+
   const TABS = [
     { id:'set',      Icon: PlusIcon,      label:'Add Block'  },
-    { id:'full',     Icon: BanIcon,       label:'Mark Full'  },
+    { id:'full',     Icon: BanIcon,       label:'Quick Actions' },
     { id:'announce', Icon: MegaphoneIcon, label:'Announce'   },
-    { id:'view',     Icon: GridIcon,      label:'All Blocks' },
+    { id:'view',     Icon: GridIcon,      label:'Master List' },
   ]
 
   return (
@@ -667,7 +687,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
       <header className="top-bar">
         <div className="top-bar-brand">
           <div className="mpl-logo-wrap">
-            <img src="/icon-512.png" alt="MPL Yard Locator" className="mpl-app-header-icon" />
+            <img src="/mpl-logo-transparent.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
           </div>
           <div className="brand-text-group">
             <span className="brand-org">MALDIVES PORTS LIMITED</span>
@@ -754,27 +774,62 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
           </div>
         )}
 
-        {/* ── MARK FULL ── */}
+        {/* ── QUICK ACTIONS (MARK FULL / CLEAR) ── */}
         {activeTab==='full' && (
           <div className="glass-card">
-            <h2 className="section-title"><BanIcon/> Mark Block as Full</h2>
-            <p className="section-sub">Staff group is notified automatically when a block is marked full.</p>
-            {active.length === 0 ? (
-              <div className="empty-inline"><CheckCircleIcon/> No active blocks — all caught up!</div>
+            <div className="card-header-row">
+              <div>
+                <h2 className="section-title mb0"><BanIcon/> Quick Block Actions</h2>
+                <p className="section-sub">Mark active blocks FULL or remove completed allocations.</p>
+              </div>
+              <span className="chip-count">{active.length} Active</span>
+            </div>
+
+            {/* Filter Search */}
+            <div className="search-wrap mb16">
+              <svg className="search-ico" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              <input type="text" value={adminFilter}
+                onChange={e => setAdminFilter(e.target.value)}
+                placeholder="Filter by liner or block (e.g. CMA, TB2)..."
+                className="search-field"
+              />
+              {adminFilter && <button className="search-x" onClick={()=>setAdminFilter('')}>✕</button>}
+            </div>
+
+            {filteredActive.length === 0 ? (
+              <div className="empty-inline"><CheckCircleIcon/> No active blocks match filter</div>
             ) : (
-              <div className="entry-list">
-                {active.map((e,i) => (
-                  <div key={i} className="entry-row">
-                    <div className="entry-meta">
-                      <span className="entry-liner">{e.liner}</span>
-                      <span className="entry-size"><span className="entry-size-icon">{e.size.includes('RF') ? <SnowIcon/> : <BoxIcon/>}</span> {SIZES.find(s=>s.id===e.size)?.label||e.size}</span>
+              <div className="admin-liner-groups">
+                {Object.entries(activeGroupedByLiner).map(([linerName, items]) => (
+                  <div key={linerName} className="admin-liner-group">
+                    <div className="admin-liner-header">
+                      <span className="liner-tag">{linerName}</span>
+                      <span className="chip-count">{items.length} block{items.length!==1?'s':''}</span>
                     </div>
-                    <BlockPill block={e.block} full={false}/>
-                    <button disabled={loading}
-                      onClick={() => handleMarkFull(e.liner,e.size,e.block)}
-                      className="btn btn--danger-sm">
-                      Mark Full
-                    </button>
+                    <div className="entry-list">
+                      {items.map((e, i) => (
+                        <div key={i} className="entry-row">
+                          <div className="entry-meta">
+                            <span className="entry-size">
+                              <span className="entry-size-icon">{e.size.includes('RF') ? <SnowIcon/> : <BoxIcon/>}</span> {SIZES.find(s=>s.id===e.size)?.label||e.size}
+                            </span>
+                            <span className="entry-date">{formatBlockDate(e.addedAt)}</span>
+                          </div>
+                          <BlockPill block={e.block} full={false}/>
+                          <div className="entry-actions">
+                            <button disabled={loading}
+                              onClick={() => handleMarkFull(e.liner, e.size, e.block)}
+                              className="btn btn--danger-sm">
+                              Mark FULL
+                            </button>
+                            <button onClick={() => handleDelete(e.liner, e.size, e.block)}
+                              className="del-x" title="Delete Block"><TrashIcon/></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -803,23 +858,50 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         {/* ── VIEW ALL ── */}
         {activeTab==='view' && (
           <div className="glass-card">
-            <div className="card-header-row">
-              <h2 className="section-title mb0"><GridIcon/> All Allocations</h2>
-              <span className="chip-count">{allEntries.length} blocks</span>
+            <div className="card-header-row mb16">
+              <div>
+                <h2 className="section-title mb0"><GridIcon/> Master Allocation List</h2>
+                <p className="section-sub">Manage all active and full terminal blocks.</p>
+              </div>
+              <span className="chip-count">{filteredAll.length} blocks</span>
             </div>
-            {allEntries.length === 0 ? (
-              <div className="empty-inline">No blocks configured yet.</div>
+
+            {/* Filter Search */}
+            <div className="search-wrap mb16">
+              <svg className="search-ico" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              <input type="text" value={adminFilter}
+                onChange={e => setAdminFilter(e.target.value)}
+                placeholder="Search allocations..."
+                className="search-field"
+              />
+              {adminFilter && <button className="search-x" onClick={()=>setAdminFilter('')}>✕</button>}
+            </div>
+
+            {filteredAll.length === 0 ? (
+              <div className="empty-inline">No blocks match search.</div>
             ) : (
               <div className="entry-list">
-                {allEntries.map((e,i) => (
+                {filteredAll.map((e,i) => (
                   <div key={i} className={`entry-row ${isFull(e)?'entry-row--full':''}`}>
                     <div className="entry-meta">
                       <span className="entry-liner">{e.liner}</span>
                       <span className="entry-size"><span className="entry-size-icon">{e.size.includes('RF') ? <SnowIcon/> : <BoxIcon/>}</span> {SIZES.find(s=>s.id===e.size)?.label||e.size}</span>
+                      <span className="entry-date">{formatBlockDate(e.addedAt)}</span>
                     </div>
                     <BlockPill block={e.block} full={isFull(e)}/>
-                    <button onClick={() => handleDelete(e.liner,e.size,e.block)}
-                      className="del-x" title="Remove"><TrashIcon/></button>
+                    <div className="entry-actions">
+                      {!isFull(e) && (
+                        <button disabled={loading}
+                          onClick={() => handleMarkFull(e.liner, e.size, e.block)}
+                          className="btn btn--danger-sm">
+                          FULL
+                        </button>
+                      )}
+                      <button onClick={() => handleDelete(e.liner,e.size,e.block)}
+                        className="del-x" title="Remove"><TrashIcon/></button>
+                    </div>
                   </div>
                 ))}
               </div>

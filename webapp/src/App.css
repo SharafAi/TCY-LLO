@@ -400,8 +400,15 @@ html, body, #root {
 .entry-row--full      { opacity: .55; }
 .entry-meta           { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .entry-liner          { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700; }
-.entry-size           { font-size: 11px; color: var(--sub2); margin-top: 1px; }
+.entry-size           { font-size: 11px; color: var(--sub2); margin-top: 1px; display: flex; align-items: center; gap: 4px; }
+.entry-date           { font-size: 10px; color: var(--sub); margin-top: 2px; font-family: 'Space Grotesk', sans-serif; }
+.entry-actions        { display: flex; align-items: center; gap: 6px; }
 .empty-inline         { text-align: center; padding: 24px; font-size: 13px; color: var(--sub2); }
+
+.admin-liner-groups   { display: flex; flex-direction: column; gap: 14px; }
+.admin-liner-group    { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+.admin-liner-header   { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.mb16                 { margin-bottom: 16px !important; }
 
 /* ─── Buttons ───────────────────────────────────────── */
 .btn {
