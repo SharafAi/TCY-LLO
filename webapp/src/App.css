@@ -405,9 +405,53 @@ html, body, #root {
 .entry-actions        { display: flex; align-items: center; gap: 6px; }
 .empty-inline         { text-align: center; padding: 24px; font-size: 13px; color: var(--sub2); }
 
-.admin-liner-groups   { display: flex; flex-direction: column; gap: 14px; }
-.admin-liner-group    { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
-.admin-liner-header   { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.admin-liner-groups   { display: flex; flex-direction: column; gap: 16px; }
+.admin-liner-group    {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 16px; padding: 14px; box-shadow: 0 4px 20px rgba(0,0,0,.2);
+  transition: transform .2s, border-color .2s;
+}
+.admin-liner-group:hover { border-color: rgba(34,211,238,.3); }
+.admin-liner-header   { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+/* Size Filter Chips Bar */
+.size-filter-row {
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.size-filter-row::-webkit-scrollbar { display: none; }
+.size-filter-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 20px;
+  border: 1px solid var(--border2); background: var(--surface);
+  color: var(--sub2); font-size: 12px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: all .2s; white-space: nowrap; flex-shrink: 0;
+}
+.size-filter-chip:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
+.size-filter-chip--active {
+  background: rgba(34,211,238,.12) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 0 14px rgba(34,211,238,.2);
+}
+
+/* Admin Size Subgroups */
+.admin-size-subgroups { display: flex; flex-direction: column; gap: 10px; }
+.admin-size-subgroup {
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.06);
+  border-left: 3px solid var(--sc, var(--accent));
+  border-radius: 12px; padding: 10px 12px;
+}
+.admin-size-subgroup-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; margin-bottom: 8px;
+  font-family: 'Space Grotesk', sans-serif;
+}
+.size-panel-icon { display: flex; align-items: center; }
+.size-panel-name { flex: 1; }
+
+.mb12                 { margin-bottom: 12px !important; }
 .mb16                 { margin-bottom: 16px !important; }
 
 /* ─── Buttons ───────────────────────────────────────── */

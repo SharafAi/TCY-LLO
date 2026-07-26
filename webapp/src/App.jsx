@@ -574,15 +574,16 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
 
 // ─── Admin Panel ──────────────────────────────────────────────
 function AdminPanel({ password, db, onRefresh, onLogout }) {
-  const [liner,        setLiner]        = useState('')
-  const [size,         setSize]         = useState('20FT')
-  const [tb,           setTb]           = useState('TB1')
-  const [bay,          setBay]          = useState('1')
-  const [loading,      setLoading]      = useState(false)
-  const [toast,        setToast]        = useState(null)
-  const [announceText, setAnnounceText] = useState('')
-  const [activeTab,    setActiveTab]    = useState('set')
-  const [adminFilter,  setAdminFilter]  = useState('')
+  const [liner,           setLiner]           = useState('')
+  const [size,            setSize]            = useState('20FT')
+  const [tb,              setTb]              = useState('TB1')
+  const [bay,             setBay]             = useState('1')
+  const [loading,         setLoading]         = useState(false)
+  const [toast,           setToast]           = useState(null)
+  const [announceText,    setAnnounceText]    = useState('')
+  const [activeTab,       setActiveTab]       = useState('set')
+  const [adminFilter,     setAdminFilter]     = useState('')
+  const [adminSizeFilter, setAdminSizeFilter] = useState('ALL')
 
   function showToast(msg, type='success') { setToast({ msg, type }) }
   function handleErr(err) {
@@ -656,11 +657,13 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
   const filterQuery = adminFilter.trim().toUpperCase()
 
   const filteredActive = active.filter(e => {
+    if (adminSizeFilter !== 'ALL' && e.size !== adminSizeFilter) return false
     if (!filterQuery) return true
     return e.liner.includes(filterQuery) || e.block.includes(filterQuery) || e.size.includes(filterQuery)
   })
 
   const filteredAll = allEntries.filter(e => {
+    if (adminSizeFilter !== 'ALL' && e.size !== adminSizeFilter) return false
     if (!filterQuery) return true
     return e.liner.includes(filterQuery) || e.block.includes(filterQuery) || e.size.includes(filterQuery)
   })
@@ -777,15 +780,30 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         {/* ── QUICK ACTIONS (MARK FULL / CLEAR) ── */}
         {activeTab==='full' && (
           <div className="glass-card">
-            <div className="card-header-row">
+            <div className="card-header-row mb12">
               <div>
                 <h2 className="section-title mb0"><BanIcon/> Quick Block Actions</h2>
                 <p className="section-sub">Mark active blocks FULL or remove completed allocations.</p>
               </div>
-              <span className="chip-count">{active.length} Active</span>
+              <span className="chip-count">{filteredActive.length} Active</span>
             </div>
 
-            {/* Filter Search */}
+            {/* Size Categorization Filter Chips */}
+            <div className="size-filter-row mb12">
+              <button className={`size-filter-chip ${adminSizeFilter==='ALL'?'size-filter-chip--active':''}`}
+                onClick={()=>setAdminSizeFilter('ALL')}>
+                <GridIcon/> All Sizes
+              </button>
+              {SIZES.map(s => (
+                <button key={s.id}
+                  className={`size-filter-chip ${adminSizeFilter===s.id?'size-filter-chip--active':''}`}
+                  onClick={()=>setAdminSizeFilter(s.id)}>
+                  {s.rf ? <SnowIcon/> : <BoxIcon/>} {s.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search Filter Input */}
             <div className="search-wrap mb16">
               <svg className="search-ico" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -799,39 +817,60 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
             </div>
 
             {filteredActive.length === 0 ? (
-              <div className="empty-inline"><CheckCircleIcon/> No active blocks match filter</div>
+              <div className="empty-inline"><CheckCircleIcon/> No active blocks match size/filter</div>
             ) : (
               <div className="admin-liner-groups">
-                {Object.entries(activeGroupedByLiner).map(([linerName, items]) => (
-                  <div key={linerName} className="admin-liner-group">
-                    <div className="admin-liner-header">
-                      <span className="liner-tag">{linerName}</span>
-                      <span className="chip-count">{items.length} block{items.length!==1?'s':''}</span>
+                {Object.entries(activeGroupedByLiner).map(([linerName, items]) => {
+                  // Sub-group items by container size
+                  const sizeGroups = items.reduce((acc, it) => {
+                    if (!acc[it.size]) acc[it.size] = []
+                    acc[it.size].push(it)
+                    return acc
+                  }, {})
+
+                  return (
+                    <div key={linerName} className="admin-liner-group">
+                      <div className="admin-liner-header">
+                        <span className="liner-tag">{linerName}</span>
+                        <span className="chip-count">{items.length} block{items.length!==1?'s':''}</span>
+                      </div>
+
+                      <div className="admin-size-subgroups">
+                        {Object.entries(sizeGroups).map(([sizeId, sizeItems]) => {
+                          const meta = SIZE_META[sizeId] || { label: sizeId, color: '#22d3ee' }
+                          return (
+                            <div key={sizeId} className="admin-size-subgroup" style={{ '--sc': meta.color }}>
+                              <div className="admin-size-subgroup-header" style={{ color: meta.color }}>
+                                <span className="size-panel-icon">{meta.rf ? <SnowIcon/> : <BoxIcon/>}</span>
+                                <span className="size-panel-name">{meta.label}</span>
+                                <span className="chip-count">{sizeItems.length}</span>
+                              </div>
+                              <div className="entry-list">
+                                {sizeItems.map((e, i) => (
+                                  <div key={i} className="entry-row">
+                                    <div className="entry-meta">
+                                      <span className="entry-date">{formatBlockDate(e.addedAt)}</span>
+                                    </div>
+                                    <BlockPill block={e.block} full={false}/>
+                                    <div className="entry-actions">
+                                      <button disabled={loading}
+                                        onClick={() => handleMarkFull(e.liner, e.size, e.block)}
+                                        className="btn btn--danger-sm">
+                                        Mark FULL
+                                      </button>
+                                      <button onClick={() => handleDelete(e.liner, e.size, e.block)}
+                                        className="del-x" title="Delete Block"><TrashIcon/></button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                    <div className="entry-list">
-                      {items.map((e, i) => (
-                        <div key={i} className="entry-row">
-                          <div className="entry-meta">
-                            <span className="entry-size">
-                              <span className="entry-size-icon">{e.size.includes('RF') ? <SnowIcon/> : <BoxIcon/>}</span> {SIZES.find(s=>s.id===e.size)?.label||e.size}
-                            </span>
-                            <span className="entry-date">{formatBlockDate(e.addedAt)}</span>
-                          </div>
-                          <BlockPill block={e.block} full={false}/>
-                          <div className="entry-actions">
-                            <button disabled={loading}
-                              onClick={() => handleMarkFull(e.liner, e.size, e.block)}
-                              className="btn btn--danger-sm">
-                              Mark FULL
-                            </button>
-                            <button onClick={() => handleDelete(e.liner, e.size, e.block)}
-                              className="del-x" title="Delete Block"><TrashIcon/></button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -855,10 +894,10 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
           </div>
         )}
 
-        {/* ── VIEW ALL ── */}
+        {/* ── VIEW ALL / MASTER LIST ── */}
         {activeTab==='view' && (
           <div className="glass-card">
-            <div className="card-header-row mb16">
+            <div className="card-header-row mb12">
               <div>
                 <h2 className="section-title mb0"><GridIcon/> Master Allocation List</h2>
                 <p className="section-sub">Manage all active and full terminal blocks.</p>
@@ -866,7 +905,22 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
               <span className="chip-count">{filteredAll.length} blocks</span>
             </div>
 
-            {/* Filter Search */}
+            {/* Size Categorization Filter Chips */}
+            <div className="size-filter-row mb12">
+              <button className={`size-filter-chip ${adminSizeFilter==='ALL'?'size-filter-chip--active':''}`}
+                onClick={()=>setAdminSizeFilter('ALL')}>
+                <GridIcon/> All Sizes
+              </button>
+              {SIZES.map(s => (
+                <button key={s.id}
+                  className={`size-filter-chip ${adminSizeFilter===s.id?'size-filter-chip--active':''}`}
+                  onClick={()=>setAdminSizeFilter(s.id)}>
+                  {s.rf ? <SnowIcon/> : <BoxIcon/>} {s.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search Filter Input */}
             <div className="search-wrap mb16">
               <svg className="search-ico" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -880,7 +934,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
             </div>
 
             {filteredAll.length === 0 ? (
-              <div className="empty-inline">No blocks match search.</div>
+              <div className="empty-inline">No blocks match size or search.</div>
             ) : (
               <div className="entry-list">
                 {filteredAll.map((e,i) => (
