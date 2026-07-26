@@ -133,9 +133,13 @@ function PasswordModal({ onSuccess, onClose }) {
     <div className="modal-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
       <div className="modal-box">
         <div className="modal-glow"/>
-        <div className="modal-icon-wrap"><AnchorIcon/></div>
-        <h2 className="modal-title">Supervisor Access</h2>
-        <p className="modal-sub">Enter your dashboard password</p>
+        <div className="modal-logo-wrap">
+          <div className="mpl-logo-badge">
+            <img src="/mpl-logo.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
+          </div>
+        </div>
+        <h2 className="modal-title">Supervisor Gateway</h2>
+        <p className="modal-sub">Enter authorized dashboard password</p>
         <input
           type="password" value={val} autoFocus
           onChange={e => { setVal(e.target.value); setErr(false) }}
@@ -191,9 +195,29 @@ const SIZE_META = {
   '40RF': { label:'40 RF', color:'#a78bfa', bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.25)', rf:true  },
 }
 
+// ─── Maldives Clock ───────────────────────────────────────────
+function MaldivesClock() {
+  const [timeStr, setTimeStr] = useState('')
+  useEffect(() => {
+    function update() {
+      const now = new Date()
+      const utc = now.getTime() + (now.getTimezoneOffset() * 60000)
+      const mvt = new Date(utc + (3600000 * 5))
+      const hrs = String(mvt.getHours()).padStart(2, '0')
+      const mins = String(mvt.getMinutes()).padStart(2, '0')
+      setTimeStr(`${hrs}:${mins} MVT`)
+    }
+    update()
+    const timer = setInterval(update, 10000)
+    return () => clearInterval(timer)
+  }, [])
+  return <span className="mvt-clock">{timeStr}</span>
+}
+
 // ─── Staff View ───────────────────────────────────────────────
 function StaffView({ db, onAdminClick }) {
   const [q, setQ] = useState('')
+  const [sizeFilter, setSizeFilter] = useState('ALL')
   const inputRef = useRef(null)
 
   const grouped = {}
@@ -205,7 +229,15 @@ function StaffView({ db, onAdminClick }) {
 
   const allLiners = Object.keys(grouped).sort()
   const query = q.trim().toUpperCase()
-  const filtered = query ? allLiners.filter(l => l.includes(query)) : allLiners
+
+  const filtered = allLiners.filter(liner => {
+    if (query && !liner.includes(query)) return false
+    if (sizeFilter !== 'ALL') {
+      const sizes = grouped[liner]
+      if (!sizes[sizeFilter] || sizes[sizeFilter].length === 0) return false
+    }
+    return true
+  })
 
   const totalBlocks  = Object.values(db).flat().length
   const activeBlocks = Object.values(db).flat().filter(e=>!isFull(e)).length
@@ -213,18 +245,23 @@ function StaffView({ db, onAdminClick }) {
 
   return (
     <div className="screen screen--dark">
-      {/* Header */}
+      {/* Header with official MPL Logo */}
       <header className="top-bar">
         <div className="top-bar-brand">
-          <div className="brand-logo"><AnchorIcon/></div>
-          <div>
-            <h1 className="brand-name">TCY YARD</h1>
-            <p className="brand-sub">Container Locator</p>
+          <div className="mpl-logo-badge">
+            <img src="/mpl-logo.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
+          </div>
+          <div className="brand-text-group">
+            <span className="brand-org">MALDIVES PORTS LIMITED</span>
+            <h1 className="brand-name">TCY Yard Locator</h1>
           </div>
         </div>
-        <button className="icon-btn" onClick={onAdminClick} title="Supervisor login">
-          <LockIcon/>
-        </button>
+        <div className="top-bar-right">
+          <MaldivesClock/>
+          <button className="icon-btn" onClick={onAdminClick} title="Supervisor Gateway">
+            <LockIcon/>
+          </button>
+        </div>
       </header>
 
       {/* Hero Search */}
@@ -242,6 +279,21 @@ function StaffView({ db, onAdminClick }) {
           {q && <button className="search-x" onClick={() => { setQ(''); inputRef.current?.focus() }}>✕</button>}
         </div>
 
+        {/* Quick Size Filters */}
+        <div className="size-filter-row">
+          <button className={`size-filter-chip ${sizeFilter==='ALL'?'size-filter-chip--active':''}`}
+            onClick={()=>setSizeFilter('ALL')}>
+            <GridIcon/> All Sizes
+          </button>
+          {SIZES.map(s => (
+            <button key={s.id}
+              className={`size-filter-chip ${sizeFilter===s.id?'size-filter-chip--active':''}`}
+              onClick={()=>setSizeFilter(s.id)}>
+              {s.rf ? <SnowIcon/> : <BoxIcon/>} {s.label}
+            </button>
+          ))}
+        </div>
+
         {/* Mini stats */}
         <div className="mini-stats">
           <span className="mini-stat"><span className="mini-dot" style={{background:'#22d3ee'}}/>{allLiners.length} liners</span>
@@ -256,14 +308,14 @@ function StaffView({ db, onAdminClick }) {
           <div className="empty">
             <div className="empty-ico"><ShipIcon/></div>
             <p className="empty-t">No active liners</p>
-            <p className="empty-s">Contact the supervisor to configure yard blocks</p>
+            <p className="empty-s">Contact supervisor to configure yard blocks</p>
           </div>
         )}
         {allLiners.length > 0 && filtered.length === 0 && (
           <div className="empty">
             <div className="empty-ico"><SearchXIcon/></div>
-            <p className="empty-t">No match for "{query}"</p>
-            <p className="empty-s">This liner is not currently assigned</p>
+            <p className="empty-t">No match found</p>
+            <p className="empty-s">No liner matches your search or size filter</p>
           </div>
         )}
 
@@ -289,9 +341,11 @@ function StaffView({ db, onAdminClick }) {
                   </div>
                 </div>
 
-                {/* Size panels — each clearly separated */}
+                {/* Size panels */}
                 <div className="size-panels">
-                  {Object.entries(sizes).map(([sizeId, arr]) => {
+                  {Object.entries(sizes)
+                    .filter(([sizeId]) => sizeFilter==='ALL' || sizeId===sizeFilter)
+                    .map(([sizeId, arr]) => {
                     const meta = SIZE_META[sizeId] || { label:sizeId, color:'#64748b', bg:'rgba(100,116,139,0.08)', border:'rgba(100,116,139,0.25)', rf:false }
                     const activeArr  = arr.filter(e => !isFull(e))
                     const fullArr    = arr.filter(e =>  isFull(e))
@@ -440,13 +494,18 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
       {/* Header */}
       <header className="top-bar">
         <div className="top-bar-brand">
-          <div className="brand-logo brand-logo--gold"><AnchorIcon/></div>
-          <div>
-            <h1 className="brand-name">ADMIN</h1>
-            <p className="brand-sub">Supervisor Control</p>
+          <div className="mpl-logo-badge">
+            <img src="/mpl-logo.png" alt="Maldives Ports Limited" className="mpl-logo-img" />
+          </div>
+          <div className="brand-text-group">
+            <span className="brand-org">MALDIVES PORTS LIMITED</span>
+            <h1 className="brand-name">Supervisor Control</h1>
           </div>
         </div>
-        <button className="logout-btn" onClick={onLogout}>Sign Out</button>
+        <div className="top-bar-right">
+          <MaldivesClock/>
+          <button className="logout-btn" onClick={onLogout}>Sign Out</button>
+        </div>
       </header>
 
       {/* Stats */}
