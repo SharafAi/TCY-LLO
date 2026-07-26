@@ -290,12 +290,13 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 
 if (fs.existsSync(PUBLIC_DIR)) {
   app.use(express.static(PUBLIC_DIR));
-  app.get('*', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
+  app.get('/{*splat}', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 } else {
-  app.get('*', (_req, res) =>
+  app.get('/{*splat}', (_req, res) =>
     res.send('<h2>Run <code>cd webapp &amp;&amp; npm install &amp;&amp; npm run build</code> first.</h2>')
   );
 }
+
 
 app.listen(DASHBOARD_PORT, () => {
   console.log(`[DASHBOARD] Running at http://localhost:${DASHBOARD_PORT}  (TZ: ${TZ})`);
