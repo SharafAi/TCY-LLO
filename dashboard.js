@@ -94,6 +94,11 @@ function auth(req, res, next) {
   next();
 }
 
+// ── PROTECTED: verify admin password ─────────
+app.post('/api/verify', auth, (req, res) => {
+  res.json({ ok: true });
+});
+
 // ── PUBLIC: get full layout ─────────────────
 app.get('/api/layout', (req, res) => {
   res.json(readDB());

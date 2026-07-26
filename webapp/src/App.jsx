@@ -120,9 +120,10 @@ function PasswordModal({ onSuccess, onClose }) {
   const [loading, setLoading] = useState(false)
 
   async function submit() {
+    if (!val) return
     setLoading(true)
     try {
-      await apiFetch('/api/layout', { headers: { 'x-dashboard-pass': val } })
+      await apiFetch('/api/verify', { method: 'POST', headers: { 'x-dashboard-pass': val } })
       onSuccess(val)
     } catch { setErr(true); setVal('') }
     finally { setLoading(false) }
@@ -357,6 +358,10 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
   const [activeTab,    setActiveTab]    = useState('set')
 
   function showToast(msg, type='success') { setToast({ msg, type }) }
+  function handleErr(err) {
+    showToast(err.message, 'error')
+    if (err.message === 'Unauthorized') onLogout()
+  }
 
   const H = { 'Content-Type':'application/json', 'x-dashboard-pass': password }
 
@@ -371,7 +376,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
       showToast(`${name} · ${size} → ${tb}-${bay} set & pinned!`)
       setLiner(''); setTb('TB1'); setBay('1')
       onRefresh()
-    } catch(err) { showToast(err.message,'error') }
+    } catch(err) { handleErr(err) }
     finally { setLoading(false) }
   }
 
@@ -383,7 +388,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         body: JSON.stringify({ liner, size, block }) })
       showToast(`${liner} · ${block} marked FULL — staff notified`)
       onRefresh()
-    } catch(err) { showToast(err.message,'error') }
+    } catch(err) { handleErr(err) }
     finally { setLoading(false) }
   }
 
@@ -394,7 +399,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         { method:'DELETE', headers:H })
       showToast(`${block} removed`)
       onRefresh()
-    } catch(err) { showToast(err.message,'error') }
+    } catch(err) { handleErr(err) }
   }
 
   async function handleAnnounce(e) {
@@ -406,7 +411,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         body: JSON.stringify({ message: announceText }) })
       showToast('Announcement pinned in staff group!')
       setAnnounceText('')
-    } catch(err) { showToast(err.message,'error') }
+    } catch(err) { handleErr(err) }
     finally { setLoading(false) }
   }
 
@@ -613,6 +618,20 @@ export default function App() {
     return () => clearInterval(id)
   }, [fetchDB])
 
+  async function handleAdminClick() {
+    if (!password) {
+      setShowModal(true)
+      return
+    }
+    try {
+      await apiFetch('/api/verify', { method: 'POST', headers: { 'x-dashboard-pass': password } })
+      setView('admin')
+    } catch {
+      handleLogout()
+      setShowModal(true)
+    }
+  }
+
   function handleSuccess(pass) {
     setPassword(pass)
     sessionStorage.setItem('tcy-pass', pass)
@@ -630,7 +649,7 @@ export default function App() {
     <>
       {showModal && <PasswordModal onSuccess={handleSuccess} onClose={() => setShowModal(false)}/>}
       {view==='staff' ? (
-        <StaffView db={db} onAdminClick={() => password ? setView('admin') : setShowModal(true)}/>
+        <StaffView db={db} onAdminClick={handleAdminClick}/>
       ) : (
         <AdminPanel password={password} db={db} onRefresh={fetchDB} onLogout={handleLogout}/>
       )}
