@@ -249,6 +249,13 @@ app.delete('/api/liner/:liner', auth, (req, res) => {
   }
 });
 
+// ── Helper: Extract container numbers from text ──
+function extractContainers(text) {
+  const matches = text.match(/\b[A-Za-z]{3,4}\d{6,7}\b/gi) || [];
+  const unique = [...new Set(matches.map(m => m.toUpperCase()))];
+  return unique.map(num => ({ number: num, done: false, doneAt: null }));
+}
+
 // ── PUBLIC: get all announcements / tasks ─────
 app.get('/api/announcements', (_req, res) => {
   res.json(readAnnouncements());
@@ -260,18 +267,24 @@ app.post('/api/announce', auth, async (req, res) => {
     const text = (req.body.message || '').trim();
     if (!text) return res.status(400).json({ error: 'message is required' });
 
+    const containers = extractContainers(text);
     const list = readAnnouncements();
     const item = {
       id: 'ann_' + Date.now(),
       text,
       createdAt: Math.floor(Date.now() / 1000),
       status: 'pending',
+      containers: containers,
       doneAt: null,
     };
     list.unshift(item);
     writeAnnouncements(list);
 
-    await broadcastAndPin(`📣 *ANNOUNCEMENT & TASK*\n${DIV}\n${text}\n\n_Staff can view and mark this task as DONE in the web app._`);
+    const cMsg = containers.length > 0 
+      ? `\n\n📌 *Containers Tracked (${containers.length}):*\n${containers.map(c => `• \`${c.number}\``).join('\n')}`
+      : '';
+
+    await broadcastAndPin(`📣 *ANNOUNCEMENT & TASK*\n${DIV}\n${text}${cMsg}\n\n_Staff can view and mark progress in the web app._`);
     res.json({ success: true, item, announcements: list });
   } catch (err) {
     console.error('[DASHBOARD /announce]', err.message);
@@ -279,7 +292,49 @@ app.post('/api/announce', auth, async (req, res) => {
   }
 });
 
-// ── PUBLIC: mark task as done by staff ────────
+// ── PUBLIC: mark individual container as loaded / done ──
+app.post('/api/announce/container', async (req, res) => {
+  try {
+    const { id, number, done } = req.body;
+    if (!id || !number) return res.status(400).json({ error: 'id and number are required' });
+
+    const list = readAnnouncements();
+    const item = list.find(a => a.id === id);
+    if (!item) return res.status(404).json({ error: 'Announcement not found' });
+
+    if (!Array.isArray(item.containers)) item.containers = [];
+    const container = item.containers.find(c => c.number === number.toUpperCase());
+    if (container) {
+      container.done = !!done;
+      container.doneAt = done ? Math.floor(Date.now() / 1000) : null;
+    }
+
+    // Auto-complete task if all containers are done
+    const allDone = item.containers.length > 0 && item.containers.every(c => c.done);
+    if (allDone) {
+      item.status = 'done';
+      item.doneAt = Math.floor(Date.now() / 1000);
+    } else if (item.status === 'done' && !done) {
+      item.status = 'pending';
+      item.doneAt = null;
+    }
+
+    writeAnnouncements(list);
+
+    const doneCount = item.containers.filter(c => c.done).length;
+    const totalCount = item.containers.length;
+    const statusTxt = done ? 'LOADED/COMPLETED' : 'UNMARKED';
+
+    await broadcastAndPin(`📦 *CONTAINER STATUS UPDATE*\n${DIV}\nContainer *${number.toUpperCase()}* marked *${statusTxt}*\nTask: "${item.text.slice(0, 80)}..."\n\nProgress: *${doneCount}/${totalCount}* containers loaded.`);
+
+    res.json({ success: true, item, announcements: list });
+  } catch (err) {
+    console.error('[DASHBOARD /announce/container]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PUBLIC: mark entire task as done by staff ────────
 app.post('/api/announce/done', async (req, res) => {
   try {
     const id = req.body.id;
@@ -291,12 +346,37 @@ app.post('/api/announce/done', async (req, res) => {
 
     item.status = 'done';
     item.doneAt = Math.floor(Date.now() / 1000);
+    if (Array.isArray(item.containers)) {
+      item.containers.forEach(c => {
+        c.done = true;
+        c.doneAt = c.doneAt || item.doneAt;
+      });
+    }
     writeAnnouncements(list);
 
     await broadcastAndPin(`✅ *TASK COMPLETED BY STAFF*\n${DIV}\n📌 *Task:* ${item.text}\n\n_Marked as DONE in the web app._`);
     res.json({ success: true, item, announcements: list });
   } catch (err) {
     console.error('[DASHBOARD /announce/done]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PROTECTED: delete announcement / task ────────
+app.delete('/api/announce', auth, async (req, res) => {
+  try {
+    const id = req.query.id || req.body.id;
+    if (!id) return res.status(400).json({ error: 'id is required' });
+
+    let list = readAnnouncements();
+    const initialLen = list.length;
+    list = list.filter(a => a.id !== id);
+    if (list.length === initialLen) return res.status(404).json({ error: 'Announcement not found' });
+
+    writeAnnouncements(list);
+    res.json({ success: true, announcements: list });
+  } catch (err) {
+    console.error('[DASHBOARD DELETE /announce]', err.message);
     res.status(500).json({ error: err.message });
   }
 });

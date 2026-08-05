@@ -398,10 +398,7 @@ function YardMapView({ db, onBlockSelect }) {
 
 // ─── Staff View ───────────────────────────────────────────────
 // ─── Announcements / Tasks Modal ──────────────────────────────
-function AnnouncementsModal({ announcements = [], onClose, onMarkDone }) {
-  const pending = announcements.filter(a => a.status === 'pending')
-  const completed = announcements.filter(a => a.status === 'done')
-
+function AnnouncementsModal({ announcements = [], onClose, onMarkDone, onToggleContainer }) {
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal-box ann-modal-box">
@@ -410,7 +407,7 @@ function AnnouncementsModal({ announcements = [], onClose, onMarkDone }) {
             <span className="ann-modal-icon"><MegaphoneIcon/></span>
             <div>
               <h2 className="modal-title mb0">Staff Tasks & Notices</h2>
-              <span className="modal-sub mb0">Supervisor work requests & yard alerts</span>
+              <span className="modal-sub mb0">Supervisor work requests & container tasks</span>
             </div>
           </div>
           <button className="del-x" onClick={onClose}>✕</button>
@@ -423,19 +420,59 @@ function AnnouncementsModal({ announcements = [], onClose, onMarkDone }) {
             <div className="ann-list">
               {announcements.map(ann => {
                 const isPending = ann.status === 'pending'
+                const containers = Array.isArray(ann.containers) ? ann.containers : []
+                const doneCount = containers.filter(c => c.done).length
+                const totalCount = containers.length
+                const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0
+
                 return (
                   <div key={ann.id} className={`ann-card ${isPending ? 'ann-card--pending' : 'ann-card--done'}`}>
                     <div className="ann-card-header">
-                      <span className={`ann-status-tag ${isPending ? 'ann-status-tag--pending' : 'ann-status-tag--done'}`}>
-                        {isPending ? '🔴 PENDING TASK' : '✓ COMPLETED'}
-                      </span>
+                      <div className="ann-card-header-left">
+                        <span className={`ann-status-tag ${isPending ? 'ann-status-tag--pending' : 'ann-status-tag--done'}`}>
+                          {isPending ? '🔴 PENDING TASK' : '✓ COMPLETED'}
+                        </span>
+                        {totalCount > 0 && (
+                          <span className="ann-card-time">
+                            {doneCount}/{totalCount} Loaded ({pct}%)
+                          </span>
+                        )}
+                      </div>
                       <span className="ann-card-time">{formatBlockDate(ann.createdAt)}</span>
                     </div>
+
                     <p className="ann-card-text">{ann.text}</p>
+
+                    {/* Container Checklist if container numbers detected */}
+                    {totalCount > 0 && (
+                      <div className="ann-containers-section">
+                        <div className="ann-progress-text">
+                          <span>Containers Progress</span>
+                          <span>{doneCount} of {totalCount} Done</span>
+                        </div>
+                        <div className="ann-progress-bar-wrap">
+                          <div className="ann-progress-bar-fill" style={{ width: `${pct}%` }} />
+                        </div>
+
+                        <div className="ann-container-grid">
+                          {containers.map((c, idx) => (
+                            <button key={idx}
+                              onClick={() => onToggleContainer(ann.id, c.number, !c.done)}
+                              className={`ann-container-chip ${c.done ? 'ann-container-chip--done' : ''}`}
+                              title={c.done ? 'Mark as Unloaded' : 'Mark as Loaded'}>
+                              <span>{c.done ? '✓' : '☐'} {c.number}</span>
+                              <span style={{ fontSize: '9px', opacity: 0.7 }}>{c.done ? 'LOADED' : 'MARK'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Work Action Button */}
                     {isPending ? (
                       <button className="ann-done-btn w-full"
                         onClick={() => onMarkDone(ann.id)}>
-                        ✓ Mark as Done
+                        ✓ Mark Entire Work Done
                       </button>
                     ) : (
                       <div className="ann-done-meta">
@@ -453,15 +490,13 @@ function AnnouncementsModal({ announcements = [], onClose, onMarkDone }) {
   )
 }
 
-function StaffView({ db, onAdminClick, password, onRefresh, announcements = [], onMarkDone }) {
+function StaffView({ db, onAdminClick, password, onRefresh, announcements = [], onMarkDone, onToggleContainer }) {
   const [q, setQ] = useState('')
   const [sizeFilter, setSizeFilter] = useState('ALL')
   const [staffTab, setStaffTab] = useState('locator') // 'locator' | 'yardmap'
   const [selectedBlock, setSelectedBlock] = useState(null)
   const [showNoticeModal, setShowNoticeModal] = useState(false)
   const inputRef = useRef(null)
-
-  const pendingCount = announcements.filter(a => a.status === 'pending').length
 
   const grouped = {}
   for (const [k, arr] of Object.entries(db)) {
@@ -502,7 +537,6 @@ function StaffView({ db, onAdminClick, password, onRefresh, announcements = [], 
         <div className="top-bar-right">
           <button className="icon-btn notice-btn" onClick={() => setShowNoticeModal(true)} title="Tasks & Announcements">
             <MegaphoneIcon/>
-            {pendingCount > 0 && <span className="notice-badge">{pendingCount}</span>}
           </button>
           <button className="icon-btn" onClick={onAdminClick} title="Supervisor Gateway">
             <LockIcon/>
@@ -706,6 +740,7 @@ function StaffView({ db, onAdminClick, password, onRefresh, announcements = [], 
           announcements={announcements}
           onClose={() => setShowNoticeModal(false)}
           onMarkDone={onMarkDone}
+          onToggleContainer={onToggleContainer}
         />
       )}
 
@@ -729,7 +764,6 @@ function StaffView({ db, onAdminClick, password, onRefresh, announcements = [], 
         <button className="dock-btn notice-dock-btn" onClick={() => setShowNoticeModal(true)}>
           <MegaphoneIcon/>
           <span>Tasks</span>
-          {pendingCount > 0 && <span className="dock-notice-badge">{pendingCount}</span>}
         </button>
         <button className={`dock-btn ${staffTab==='yardmap'?'dock-btn--active':''}`}
           onClick={()=>setStaffTab('yardmap')}>
@@ -743,7 +777,7 @@ function StaffView({ db, onAdminClick, password, onRefresh, announcements = [], 
 
 
 // ─── Admin Panel ──────────────────────────────────────────────
-function AdminPanel({ password, db, onRefresh, onLogout, announcements = [], setAnnouncements }) {
+function AdminPanel({ password, db, onRefresh, onLogout, announcements = [], setAnnouncements, onDeleteAnnouncement }) {
   const [liner,           setLiner]           = useState('')
   const [size,            setSize]            = useState('20FT')
   const [tb,              setTb]              = useState('TB1')
@@ -1138,13 +1172,31 @@ function AdminPanel({ password, db, onRefresh, onLogout, announcements = [], set
                 <div className="ann-list">
                   {announcements.map(ann => {
                     const isPending = ann.status === 'pending'
+                    const containers = Array.isArray(ann.containers) ? ann.containers : []
+                    const doneCount = containers.filter(c => c.done).length
+                    const totalCount = containers.length
+
                     return (
                       <div key={ann.id} className={`ann-card ${isPending ? 'ann-card--pending' : 'ann-card--done'}`}>
                         <div className="ann-card-header">
-                          <span className={`ann-status-tag ${isPending ? 'ann-status-tag--pending' : 'ann-status-tag--done'}`}>
-                            {isPending ? '🔴 PENDING STAFF ACTION' : '✓ COMPLETED BY STAFF'}
-                          </span>
-                          <span className="ann-card-time">{formatBlockDate(ann.createdAt)}</span>
+                          <div className="ann-card-header-left">
+                            <span className={`ann-status-tag ${isPending ? 'ann-status-tag--pending' : 'ann-status-tag--done'}`}>
+                              {isPending ? '🔴 PENDING STAFF ACTION' : '✓ COMPLETED BY STAFF'}
+                            </span>
+                            {totalCount > 0 && (
+                              <span className="ann-card-time">
+                                Containers: {doneCount}/{totalCount} loaded
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="ann-card-time">{formatBlockDate(ann.createdAt)}</span>
+                            <button className="ann-card-del-btn"
+                              onClick={() => onDeleteAnnouncement(ann.id)}
+                              title="Delete Announcement">
+                              <TrashIcon/>
+                            </button>
+                          </div>
                         </div>
                         <p className="ann-card-text">{ann.text}</p>
                       </div>
@@ -1282,6 +1334,32 @@ export default function App() {
     }
   }
 
+  async function handleToggleContainer(id, number, done) {
+    try {
+      const res = await apiFetch('/api/announce/container', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, number, done })
+      })
+      if (res.announcements) setAnnouncements(res.announcements)
+    } catch (err) {
+      alert(err.message || 'Failed to update container status')
+    }
+  }
+
+  async function handleDeleteAnnouncement(id) {
+    if (!confirm('Are you sure you want to delete this announcement?')) return
+    try {
+      const res = await apiFetch(`/api/announce?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'x-dashboard-pass': password }
+      })
+      if (res.announcements) setAnnouncements(res.announcements)
+    } catch (err) {
+      alert(err.message || 'Failed to delete announcement')
+    }
+  }
+
   async function handleAdminClick() {
     if (!password) {
       setShowModal(true)
@@ -1314,9 +1392,9 @@ export default function App() {
       <OfflineBanner status={connStatus}/>
       {showModal && <PasswordModal onSuccess={handleSuccess} onClose={() => setShowModal(false)}/>}
       {view==='staff' ? (
-        <StaffView db={db} onAdminClick={handleAdminClick} password={password} onRefresh={fetchDB} announcements={announcements} onMarkDone={handleMarkDone}/>
+        <StaffView db={db} onAdminClick={handleAdminClick} password={password} onRefresh={fetchDB} announcements={announcements} onMarkDone={handleMarkDone} onToggleContainer={handleToggleContainer}/>
       ) : (
-        <AdminPanel password={password} db={db} onRefresh={fetchDB} onLogout={handleLogout} announcements={announcements} setAnnouncements={setAnnouncements}/>
+        <AdminPanel password={password} db={db} onRefresh={fetchDB} onLogout={handleLogout} announcements={announcements} setAnnouncements={setAnnouncements} onDeleteAnnouncement={handleDeleteAnnouncement}/>
       )}
     </>
   )
