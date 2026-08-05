@@ -565,12 +565,12 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
                                 <span className="no-blocks-text">No blocks assigned</span>
                               )}
 
-                              {/* Cleared for Dispatch (fresh empty) */}
+                              {/* NEW (fresh empty) */}
                               {activeArr.filter(e => isFresh(e)).length > 0 && (
                                 <div className="cat-section cat-section--fresh">
                                   <span className="cat-section-label">
                                     <ClearedEmptyIcon size={12}/>
-                                    Cleared for Dispatch
+                                    NEW
                                   </span>
                                   <div className="cat-section-blocks">
                                     {activeArr.filter(e => isFresh(e)).map((e,i) => (
@@ -584,12 +584,12 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
                                 </div>
                               )}
 
-                              {/* Extended Dwell (long idle) */}
+                              {/* LONG IDLE */}
                               {activeArr.filter(e => isIdle(e)).length > 0 && (
                                 <div className="cat-section cat-section--idle">
                                   <span className="cat-section-label">
                                     <DwellAlertIcon size={12}/>
-                                    Extended Dwell
+                                    LONG IDLE
                                   </span>
                                   <div className="cat-section-blocks">
                                     {activeArr.filter(e => isIdle(e)).map((e,i) => (
