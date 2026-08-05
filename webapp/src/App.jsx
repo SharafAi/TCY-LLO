@@ -16,11 +16,12 @@ const TB_ACCENT = {
   TB4:'#fb923c', TB5:'#22d3ee', TB6:'#f43f5e', TB7:'#fbbf24',
 }
 
-// Container categories
+// Container categories (port-industry terminology)
+// icons are rendered as React components — see ClearedEmptyIcon / DwellAlertIcon
 const CATEGORIES = [
-  { id:'standard', label:'Standard',    icon:'📦', color:'#22d3ee',  desc:'Regular container block' },
-  { id:'fresh',    label:'Fresh Empty', icon:'🟢', color:'#10b981',  desc:'Newly available empty block' },
-  { id:'idle',     label:'Long Idle',   icon:'🕐', color:'#f59e0b',  desc:'Container idle >72 hours' },
+  { id:'standard', label:'Standard Block',       color:'#22d3ee', desc:'General yard allocation' },
+  { id:'fresh',    label:'Cleared for Dispatch',  color:'#10b981', desc:'Verified empty — gate-in ready' },
+  { id:'idle',     label:'Extended Dwell',        color:'#f59e0b', desc:'Dwell time exceeds 72 hrs' },
 ]
 
 function getTBAccent(block='') {
@@ -130,6 +131,20 @@ const BanIcon = () => (
     <path strokeLinecap="round" d="M4.93 4.93l14.14 14.14"/>
   </svg>
 )
+// Extended Dwell — triangle alert
+const DwellAlertIcon = ({ size=16 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} fill="currentColor" viewBox="0 0 170 152">
+    <path d="M78 9.2c-2.3 1.6-5.9 7.1-12.2 18.3L9.7 128c-2.5 4.8-1.7 10.7 1.8 13.7l2.6 2.3h141.1l2.9-2.9c5.1-5.1 4.4-7.8-8-30A10360 10360 0 0 0 100.2 22C93.7 10.7 89.9 7 84.5 7A14 14 0 0 0 78 9.2m9.3 3.9c2.7 1.2 9.6 13 45.7 77.9 12.6 22.8 23 42.4 23 43.5s-.5 2.6-1.2 3.3c-.9.9-17.8 1.2-69.9 1.2-61.2 0-68.9-.2-70.3-1.6-2.9-2.9-7 5 50.7-98.4 15.4-27.6 16.2-28.5 22-25.9"/>
+    <path d="M82.2 47.2c-.9.9-1.2 8.2-1.2 26.9 0 22.2.2 25.8 1.6 27q1.5 1.4 3.2.2c1.5-.9 1.7-4 2-26.6.2-22.2 0-25.7-1.4-27.1-1.9-1.9-2.6-2-4.2-.4m-2.7 67.3a8 8 0 0 0-2.5 5c0 1.4 1.1 3.7 2.5 5 3.8 3.9 8.6 3.2 11.1-1.6 3.9-7.7-5.1-14.5-11.1-8.4"/>
+  </svg>
+)
+// Cleared for Dispatch — shield tick
+const ClearedEmptyIcon = ({ size=16 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} fill="currentColor" viewBox="0 0 149 180">
+    <path d="M62.5 14.7a148 148 0 0 1-43.3 14.9c-5.3.9-10.3 2.1-10.9 2.7C7.3 33 7 38.2 7 52.1c0 36.6 3.1 55.7 11.5 71.7s21.6 29.1 40.3 40.3c14.6 8.7 15.4 8.8 23.3 4.9 24.6-12.3 44.7-32.8 52.8-53.8 5.1-13.4 5.6-17.9 5.6-52.2V31.6L129 29.4c-15.7-3-28.3-7.3-42.5-14.8l-12-6.3zm20.1 3.7c13.4 7.6 33 14.2 50.7 17.1l3.7.6v15.7c-.1 21.3-1.5 42.6-3.5 50.9-6.1 24.9-25.2 47.1-52.1 60.7l-6.8 3.4-6.1-3a117 117 0 0 1-43.3-38.4c-9.4-15.7-12.1-29.5-12.9-64.1l-.6-25.2 2.4-.5 11-2a151 151 0 0 0 49-19.5 56 56 0 0 1 8.5 4.3"/>
+    <path d="M96.1 69.8a431 431 0 0 0-29.1 36 26 26 0 0 1-4 5.1c-.3 0-4.3-4.9-8.9-11C46 89.4 43 87.1 42.2 91c-.1.9 3.4 6.3 7.9 12 9.5 12.4 11.9 15 13.3 15a39 39 0 0 0 7.3-8.8 370 370 0 0 1 27.1-33.6 71 71 0 0 0 9.7-12.4q.2-6-11.4 6.6"/>
+  </svg>
+)
 
 // ─── Offline Banner ───────────────────────────────────────────
 function OfflineBanner({ status }) {
@@ -139,7 +154,7 @@ function OfflineBanner({ status }) {
       <span className="offline-dot"/>
       {status === 'reconnecting'
         ? <><span className="spinner offline-spinner"/>Reconnecting to server…</>
-        : '⚠️ Server unreachable — showing last known data'}
+        : 'Server unreachable — displaying last known data'}
     </div>
   )
 }
@@ -550,10 +565,13 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
                                 <span className="no-blocks-text">No blocks assigned</span>
                               )}
 
-                              {/* Fresh Empty category */}
+                              {/* Cleared for Dispatch (fresh empty) */}
                               {activeArr.filter(e => isFresh(e)).length > 0 && (
                                 <div className="cat-section cat-section--fresh">
-                                  <span className="cat-section-label">🟢 Fresh Empty</span>
+                                  <span className="cat-section-label">
+                                    <ClearedEmptyIcon size={12}/>
+                                    Cleared for Dispatch
+                                  </span>
                                   <div className="cat-section-blocks">
                                     {activeArr.filter(e => isFresh(e)).map((e,i) => (
                                       <div key={`fr${i}`} className="block-tag block-tag--fresh" style={{'--bc': getTBAccent(e.block)}}
@@ -566,10 +584,13 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
                                 </div>
                               )}
 
-                              {/* Long Idle category */}
+                              {/* Extended Dwell (long idle) */}
                               {activeArr.filter(e => isIdle(e)).length > 0 && (
                                 <div className="cat-section cat-section--idle">
-                                  <span className="cat-section-label">🕐 Long Idle</span>
+                                  <span className="cat-section-label">
+                                    <DwellAlertIcon size={12}/>
+                                    Extended Dwell
+                                  </span>
                                   <div className="cat-section-blocks">
                                     {activeArr.filter(e => isIdle(e)).map((e,i) => (
                                       <div key={`id${i}`} className="block-tag block-tag--idle" style={{'--bc': getTBAccent(e.block)}}
@@ -848,7 +869,11 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                       className={`cat-btn ${category===c.id?'cat-btn--on':''}`}
                       style={{'--cc': c.color}}
                       onClick={() => setCategory(c.id)}>
-                      <span className="cat-btn-icon">{c.icon}</span>
+                      <span className="cat-btn-icon">
+                        {c.id === 'fresh'    && <ClearedEmptyIcon size={20}/>}
+                        {c.id === 'idle'     && <DwellAlertIcon size={20}/>}
+                        {c.id === 'standard' && <BoxIcon/>}
+                      </span>
                       <span className="cat-btn-label">{c.label}</span>
                       <span className="cat-btn-desc">{c.desc}</span>
                     </button>
@@ -859,7 +884,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                 <span className="preview-lbl">Preview block:</span>
                 <BlockPill block={`${tb}-${bay}`} full={false} size="lg"/>
                 <span className="cat-preview-tag" style={{background: `${getCatMeta(category).color}20`, color: getCatMeta(category).color, borderColor: `${getCatMeta(category).color}40`}}>
-                  {getCatMeta(category).icon} {getCatMeta(category).label}
+                  {getCatMeta(category).label}
                 </span>
               </div>
               <button type="submit" disabled={loading} className="btn btn--primary w-full">

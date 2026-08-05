@@ -709,7 +709,8 @@ html, body, #root {
   background: color-mix(in srgb, var(--cc, var(--accent)) 10%, transparent);
   box-shadow: 0 0 14px color-mix(in srgb, var(--cc, var(--accent)) 25%, transparent);
 }
-.cat-btn-icon  { font-size: 18px; line-height: 1; }
+.cat-btn-icon  { display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; color: var(--sub2); transition: color .2s; }
+.cat-btn--on .cat-btn-icon { color: var(--cc, var(--accent)); }
 .cat-btn-label { font-size: 11px; font-weight: 700; color: var(--text); font-family: 'Space Grotesk', sans-serif; }
 .cat-btn-desc  { font-size: 9px; color: var(--sub); line-height: 1.3; }
 .cat-btn--on .cat-btn-label { color: var(--cc, var(--accent)); }
@@ -732,7 +733,8 @@ html, body, #root {
   background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.2);
 }
 .cat-section-label {
-  display: block; font-size: 10px; font-weight: 800; letter-spacing: .08em;
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 800; letter-spacing: .08em;
   text-transform: uppercase; font-family: 'Space Grotesk', sans-serif;
   margin-bottom: 6px; color: var(--sub2);
 }
