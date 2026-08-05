@@ -90,12 +90,19 @@ const parseKey = key => { const [liner,size='ALL']=key.split('|'); return {liner
 // ─────────────────────────────────────────────
 const telegram = new Telegraf(BOT_TOKEN).telegram;
 
-async function broadcastAndPin(text, parseMode = 'Markdown') {
-  const sent = await telegram.sendMessage(STAFF_GROUP_ID, text, { parse_mode: parseMode });
+async function broadcastAndPin(text, parseMode = 'Markdown', silent = true) {
   try {
-    await telegram.pinChatMessage(STAFF_GROUP_ID, sent.message_id, { disable_notification: false });
-  } catch(e){ console.warn('[PIN]', e.message); }
-  return sent;
+    const sent = await telegram.sendMessage(STAFF_GROUP_ID, text, {
+      parse_mode: parseMode,
+      disable_notification: silent
+    });
+    try {
+      await telegram.pinChatMessage(STAFF_GROUP_ID, sent.message_id, { disable_notification: true });
+    } catch(e){ console.warn('[PIN]', e.message); }
+    return sent;
+  } catch(e) {
+    console.error('[TELEGRAM BROADCAST ERROR]', e.message);
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -143,7 +150,7 @@ app.post('/api/set', auth, async (req, res) => {
       ? `📢 *YARD UPDATE*\n${DIV}\n🚢 *${liner}*  •  ${sizeEmoji(size)} *${sizeLabel(size)}*\n\n🆕 Additional block opened: *${block}*\n\n_All operators, please note the new location._`
       : `📢 *YARD UPDATE*\n${DIV}\n🚢 *${liner}*  •  ${sizeEmoji(size)} *${sizeLabel(size)}*\n\n📦 Containers routing to block *${block}*\n\n_All operators, route units accordingly._`;
 
-    await broadcastAndPin(broadcastText);
+    await broadcastAndPin(broadcastText, 'Markdown', true);
     res.json({ success: true, liner, size, block, addedAt });
   } catch (err) {
     console.error('[DASHBOARD /set]', err.message);
@@ -179,7 +186,7 @@ app.post('/api/markfull', auth, async (req, res) => {
     else broadcastText += `\n⚠️ *No additional blocks available.* Contact supervisor.\n`;
     broadcastText += `\n_All operators, please update accordingly._`;
 
-    await broadcastAndPin(broadcastText);
+    await broadcastAndPin(broadcastText, 'Markdown', true);
     res.json({ success: true, liner, size, block });
   } catch (err) {
     console.error('[DASHBOARD /markfull]', err.message);
@@ -321,11 +328,10 @@ app.post('/api/announce/container', async (req, res) => {
 
     writeAnnouncements(list);
 
-    const doneCount = item.containers.filter(c => c.done).length;
-    const totalCount = item.containers.length;
-    const statusTxt = done ? 'LOADED/COMPLETED' : 'UNMARKED';
-
-    await broadcastAndPin(`📦 *CONTAINER STATUS UPDATE*\n${DIV}\nContainer *${number.toUpperCase()}* marked *${statusTxt}*\nTask: "${item.text.slice(0, 80)}..."\n\nProgress: *${doneCount}/${totalCount}* containers loaded.`);
+    // Only notify Telegram silently when all containers are finished
+    if (allDone) {
+      await broadcastAndPin(`✅ *ALL CONTAINERS LOADED*\n${DIV}\n📌 *Task Completed:* ${item.text}\n\n_All ${item.containers.length} containers marked loaded in the web app._`, 'Markdown', true);
+    }
 
     res.json({ success: true, item, announcements: list });
   } catch (err) {
@@ -354,7 +360,7 @@ app.post('/api/announce/done', async (req, res) => {
     }
     writeAnnouncements(list);
 
-    await broadcastAndPin(`✅ *TASK COMPLETED BY STAFF*\n${DIV}\n📌 *Task:* ${item.text}\n\n_Marked as DONE in the web app._`);
+    await broadcastAndPin(`✅ *TASK COMPLETED BY STAFF*\n${DIV}\n📌 *Task:* ${item.text}\n\n_Marked as DONE in the web app._`, 'Markdown', true);
     res.json({ success: true, item, announcements: list });
   } catch (err) {
     console.error('[DASHBOARD /announce/done]', err.message);
