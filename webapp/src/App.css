@@ -835,3 +835,93 @@ html, body, #root {
 .cat-toggle-btn--idle:hover {
   background: rgba(245,158,11,.18); border-color: #f59e0b;
 }
+
+/* ─── Block Action Card top row button fix ──────────── */
+.bac-top-left {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0;
+}
+.del-card-btn {
+  width: 30px; height: 30px; border-radius: 8px;
+  border: 1px solid rgba(244,63,94,.3); background: rgba(244,63,94,.1);
+  color: #f43f5e; display: grid; place-items: center; cursor: pointer;
+  transition: all .15s; flex-shrink: 0;
+}
+.del-card-btn:hover {
+  background: var(--red); color: #fff; border-color: var(--red);
+  box-shadow: 0 0 12px rgba(244,63,94,.4);
+}
+
+/* ─── Notice Badges & Header Buttons ───────────────── */
+.notice-btn { position: relative; }
+.notice-badge {
+  position: absolute; top: -3px; right: -3px;
+  background: #f43f5e; color: #fff;
+  font-size: 10px; font-weight: 800; font-family: 'Space Grotesk', sans-serif;
+  height: 16px; min-width: 16px; border-radius: 10px; padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 10px rgba(244,63,94,.6); border: 1.5px solid var(--bg);
+  animation: badgePulse 2s ease infinite;
+}
+@keyframes badgePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
+
+.dock-notice-badge {
+  background: #f43f5e; color: #fff;
+  font-size: 9px; font-weight: 800; font-family: 'Space Grotesk', sans-serif;
+  padding: 1px 5px; border-radius: 10px; margin-left: 2px;
+}
+
+/* ─── Announcements / Tasks Modal & Cards ───────────── */
+.ann-modal-box {
+  max-width: 440px !important; width: 100% !important;
+  align-items: stretch !important; padding: 24px 20px !important;
+}
+.modal-top-bar {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+}
+.ann-modal-title-row { display: flex; align-items: center; gap: 10px; }
+.ann-modal-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: rgba(167,139,250,.15); border: 1px solid rgba(167,139,250,.3);
+  color: #a78bfa; display: grid; place-items: center; flex-shrink: 0;
+}
+.ann-modal-body {
+  max-height: 60vh; overflow-y: auto; padding-right: 4px;
+  scrollbar-width: thin;
+}
+.ann-list { display: flex; flex-direction: column; gap: 10px; }
+.ann-card {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px;
+  transition: all .2s;
+}
+.ann-card--pending {
+  border-left: 4px solid #f43f5e; background: rgba(244,63,94,.03);
+}
+.ann-card--done {
+  border-left: 4px solid #10b981; opacity: .8;
+}
+.ann-card-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.ann-status-tag {
+  font-size: 9px; font-weight: 800; font-family: 'Space Grotesk', sans-serif;
+  letter-spacing: .06em; padding: 2px 7px; border-radius: 4px;
+}
+.ann-status-tag--pending { background: rgba(244,63,94,.15); color: #f43f5e; border: 1px solid rgba(244,63,94,.3); }
+.ann-status-tag--done    { background: rgba(16,185,129,.15); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
+.ann-card-time { font-size: 10px; color: var(--sub); font-family: 'Space Grotesk', sans-serif; }
+.ann-card-text { font-size: 13px; color: var(--text); line-height: 1.5; font-weight: 500; }
+.ann-done-btn {
+  font-size: 12px; font-weight: 700; font-family: 'Space Grotesk', sans-serif;
+  padding: 8px 14px; border-radius: 8px; cursor: pointer;
+  background: rgba(16,185,129,.15); border: 1px solid #10b981; color: #10b981;
+  transition: all .15s; margin-top: 4px;
+}
+.ann-done-btn:hover { background: #10b981; color: #fff; box-shadow: 0 0 16px rgba(16,185,129,.4); }
+.ann-done-meta {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; color: #10b981; font-family: 'Space Grotesk', sans-serif;
+}
+.mt16 { margin-top: 16px !important; }
+.mb8 { margin-bottom: 8px !important; }

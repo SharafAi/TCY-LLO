@@ -397,12 +397,71 @@ function YardMapView({ db, onBlockSelect }) {
 }
 
 // ─── Staff View ───────────────────────────────────────────────
-function StaffView({ db, onAdminClick, password, onRefresh }) {
+// ─── Announcements / Tasks Modal ──────────────────────────────
+function AnnouncementsModal({ announcements = [], onClose, onMarkDone }) {
+  const pending = announcements.filter(a => a.status === 'pending')
+  const completed = announcements.filter(a => a.status === 'done')
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-box ann-modal-box">
+        <div className="modal-top-bar">
+          <div className="ann-modal-title-row">
+            <span className="ann-modal-icon"><MegaphoneIcon/></span>
+            <div>
+              <h2 className="modal-title mb0">Staff Tasks & Notices</h2>
+              <span className="modal-sub mb0">Supervisor work requests & yard alerts</span>
+            </div>
+          </div>
+          <button className="del-x" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="ann-modal-body">
+          {announcements.length === 0 ? (
+            <div className="empty-inline">No active tasks or announcements.</div>
+          ) : (
+            <div className="ann-list">
+              {announcements.map(ann => {
+                const isPending = ann.status === 'pending'
+                return (
+                  <div key={ann.id} className={`ann-card ${isPending ? 'ann-card--pending' : 'ann-card--done'}`}>
+                    <div className="ann-card-header">
+                      <span className={`ann-status-tag ${isPending ? 'ann-status-tag--pending' : 'ann-status-tag--done'}`}>
+                        {isPending ? '🔴 PENDING TASK' : '✓ COMPLETED'}
+                      </span>
+                      <span className="ann-card-time">{formatBlockDate(ann.createdAt)}</span>
+                    </div>
+                    <p className="ann-card-text">{ann.text}</p>
+                    {isPending ? (
+                      <button className="ann-done-btn w-full"
+                        onClick={() => onMarkDone(ann.id)}>
+                        ✓ Mark as Done
+                      </button>
+                    ) : (
+                      <div className="ann-done-meta">
+                        <CheckCircleIcon/> Completed {formatBlockDate(ann.doneAt)}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StaffView({ db, onAdminClick, password, onRefresh, announcements = [], onMarkDone }) {
   const [q, setQ] = useState('')
   const [sizeFilter, setSizeFilter] = useState('ALL')
   const [staffTab, setStaffTab] = useState('locator') // 'locator' | 'yardmap'
   const [selectedBlock, setSelectedBlock] = useState(null)
+  const [showNoticeModal, setShowNoticeModal] = useState(false)
   const inputRef = useRef(null)
+
+  const pendingCount = announcements.filter(a => a.status === 'pending').length
 
   const grouped = {}
   for (const [k, arr] of Object.entries(db)) {
@@ -441,6 +500,10 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
           </div>
         </div>
         <div className="top-bar-right">
+          <button className="icon-btn notice-btn" onClick={() => setShowNoticeModal(true)} title="Tasks & Announcements">
+            <MegaphoneIcon/>
+            {pendingCount > 0 && <span className="notice-badge">{pendingCount}</span>}
+          </button>
           <button className="icon-btn" onClick={onAdminClick} title="Supervisor Gateway">
             <LockIcon/>
           </button>
@@ -637,6 +700,15 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
         )}
       </div>
 
+      {/* Announcements / Tasks Modal */}
+      {showNoticeModal && (
+        <AnnouncementsModal
+          announcements={announcements}
+          onClose={() => setShowNoticeModal(false)}
+          onMarkDone={onMarkDone}
+        />
+      )}
+
       {/* Block Details Modal */}
       {selectedBlock && (
         <BlockDetailModal
@@ -652,7 +724,12 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
         <button className={`dock-btn ${staffTab==='locator'?'dock-btn--active':''}`}
           onClick={()=>setStaffTab('locator')}>
           <BoxIcon/>
-          <span>Block Locator</span>
+          <span>Locator</span>
+        </button>
+        <button className="dock-btn notice-dock-btn" onClick={() => setShowNoticeModal(true)}>
+          <MegaphoneIcon/>
+          <span>Tasks</span>
+          {pendingCount > 0 && <span className="dock-notice-badge">{pendingCount}</span>}
         </button>
         <button className={`dock-btn ${staffTab==='yardmap'?'dock-btn--active':''}`}
           onClick={()=>setStaffTab('yardmap')}>
@@ -666,7 +743,7 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
 
 
 // ─── Admin Panel ──────────────────────────────────────────────
-function AdminPanel({ password, db, onRefresh, onLogout }) {
+function AdminPanel({ password, db, onRefresh, onLogout, announcements = [], setAnnouncements }) {
   const [liner,           setLiner]           = useState('')
   const [size,            setSize]            = useState('20FT')
   const [tb,              setTb]              = useState('TB1')
@@ -738,9 +815,10 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
     if (!announceText.trim()) return
     setLoading(true)
     try {
-      await apiFetch('/api/announce', { method:'POST', headers:H,
+      const res = await apiFetch('/api/announce', { method:'POST', headers:H,
         body: JSON.stringify({ message: announceText }) })
-      showToast('Announcement pinned in staff group!')
+      if (res.announcements && setAnnouncements) setAnnouncements(res.announcements)
+      showToast('Announcement & task assigned to staff!')
       setAnnounceText('')
     } catch(err) { handleErr(err) }
     finally { setLoading(false) }
@@ -977,19 +1055,25 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                                   const isCatFresh = e.category === 'fresh'
                                   return (
                                     <div key={i} className="block-action-card">
-                                      {/* Top: block pill + status */}
+                                      {/* Top: block pill + status on left, red trash delete button on right */}
                                       <div className="bac-top">
-                                        <BlockPill block={e.block} full={false}/>
-                                        {isCatFresh && (
-                                          <span className="cat-status-badge cat-status-badge--fresh">
-                                            <ClearedEmptyIcon size={10}/> NEW
-                                          </span>
-                                        )}
-                                        {isCatIdle && (
-                                          <span className="cat-status-badge cat-status-badge--idle">
-                                            <DwellAlertIcon size={10}/> LONG IDLE
-                                          </span>
-                                        )}
+                                        <div className="bac-top-left">
+                                          <BlockPill block={e.block} full={false}/>
+                                          {isCatFresh && (
+                                            <span className="cat-status-badge cat-status-badge--fresh">
+                                              <ClearedEmptyIcon size={10}/> NEW
+                                            </span>
+                                          )}
+                                          {isCatIdle && (
+                                            <span className="cat-status-badge cat-status-badge--idle">
+                                              <DwellAlertIcon size={10}/> LONG IDLE
+                                            </span>
+                                          )}
+                                        </div>
+                                        <button onClick={() => handleDelete(e.liner, e.size, e.block)}
+                                          className="del-card-btn" title="Remove Block">
+                                          <TrashIcon/>
+                                        </button>
                                       </div>
                                       {/* Bottom: date + actions */}
                                       <div className="bac-bottom">
@@ -1012,8 +1096,6 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                                             className="btn btn--danger-sm">
                                             Mark FULL
                                           </button>
-                                          <button onClick={() => handleDelete(e.liner, e.size, e.block)}
-                                            className="del-x" title="Remove"><TrashIcon/></button>
                                         </div>
                                       </div>
                                     </div>
@@ -1035,18 +1117,42 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
         {/* ── ANNOUNCE ── */}
         {activeTab==='announce' && (
           <div className="glass-card">
-            <h2 className="section-title"><MegaphoneIcon/> Broadcast Announcement</h2>
-            <p className="section-sub">Message will be pinned in the staff Telegram group.</p>
+            <h2 className="section-title"><MegaphoneIcon/> Broadcast Announcement & Work Request</h2>
+            <p className="section-sub">Message will be pinned in Telegram & assigned to staff as an in-app task.</p>
             <form onSubmit={handleAnnounce} className="form-stack">
               <textarea value={announceText}
                 onChange={e => setAnnounceText(e.target.value)}
-                placeholder="Type your announcement…"
-                rows={5} className="field-inp field-ta"/>
+                placeholder="e.g. Move 5 containers from TB2-4 to TB5-10..."
+                rows={4} className="field-inp field-ta"/>
               <button type="submit" disabled={loading || !announceText.trim()}
                 className="btn btn--violet w-full">
-                {loading ? <span className="spinner"/> : <><MegaphoneIcon/> Pin in Staff Group</>}
+                {loading ? <span className="spinner"/> : <><MegaphoneIcon/> Pin & Assign Task to Staff</>}
               </button>
             </form>
+
+            <div className="ann-history-section">
+              <h3 className="section-title mt16 mb8">Recent Task History</h3>
+              {announcements.length === 0 ? (
+                <div className="empty-inline">No announcements or tasks issued yet.</div>
+              ) : (
+                <div className="ann-list">
+                  {announcements.map(ann => {
+                    const isPending = ann.status === 'pending'
+                    return (
+                      <div key={ann.id} className={`ann-card ${isPending ? 'ann-card--pending' : 'ann-card--done'}`}>
+                        <div className="ann-card-header">
+                          <span className={`ann-status-tag ${isPending ? 'ann-status-tag--pending' : 'ann-status-tag--done'}`}>
+                            {isPending ? '🔴 PENDING STAFF ACTION' : '✓ COMPLETED BY STAFF'}
+                          </span>
+                          <span className="ann-card-time">{formatBlockDate(ann.createdAt)}</span>
+                        </div>
+                        <p className="ann-card-text">{ann.text}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1126,6 +1232,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
 // ─── Root ─────────────────────────────────────────────────────
 export default function App() {
   const [db,            setDb]           = useState({})
+  const [announcements, setAnnouncements]= useState([])
   const [view,          setView]         = useState('staff')
   const [showModal,     setShowModal]    = useState(false)
   const [password,      setPassword]     = useState(sessionStorage.getItem('tcy-pass')||'')
@@ -1145,11 +1252,35 @@ export default function App() {
     }
   }, [])
 
+  const fetchAnnouncements = useCallback(async () => {
+    try {
+      const data = await apiFetch('/api/announcements')
+      if (Array.isArray(data)) setAnnouncements(data)
+    } catch {}
+  }, [])
+
   useEffect(() => {
     fetchDB()
-    const id = setInterval(fetchDB, 30_000)
+    fetchAnnouncements()
+    const id = setInterval(() => {
+      fetchDB()
+      fetchAnnouncements()
+    }, 15_000)
     return () => clearInterval(id)
-  }, [fetchDB])
+  }, [fetchDB, fetchAnnouncements])
+
+  async function handleMarkDone(id) {
+    try {
+      const res = await apiFetch('/api/announce/done', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      })
+      if (res.announcements) setAnnouncements(res.announcements)
+    } catch (err) {
+      alert(err.message || 'Failed to mark task as done')
+    }
+  }
 
   async function handleAdminClick() {
     if (!password) {
@@ -1183,9 +1314,9 @@ export default function App() {
       <OfflineBanner status={connStatus}/>
       {showModal && <PasswordModal onSuccess={handleSuccess} onClose={() => setShowModal(false)}/>}
       {view==='staff' ? (
-        <StaffView db={db} onAdminClick={handleAdminClick} password={password} onRefresh={fetchDB}/>
+        <StaffView db={db} onAdminClick={handleAdminClick} password={password} onRefresh={fetchDB} announcements={announcements} onMarkDone={handleMarkDone}/>
       ) : (
-        <AdminPanel password={password} db={db} onRefresh={fetchDB} onLogout={handleLogout}/>
+        <AdminPanel password={password} db={db} onRefresh={fetchDB} onLogout={handleLogout} announcements={announcements} setAnnouncements={setAnnouncements}/>
       )}
     </>
   )

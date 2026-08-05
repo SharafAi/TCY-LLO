@@ -64,6 +64,24 @@ function writeDB(data) {
 
 if (!fs.existsSync(DB_PATH)) writeDB({});
 
+// ─── ANNOUNCEMENTS & TASKS DB ─────────────────────────
+const ANNOUNCEMENTS_PATH = './announcements.json';
+
+function readAnnouncements() {
+  try {
+    const data = JSON.parse(fs.readFileSync(ANNOUNCEMENTS_PATH, 'utf8'));
+    return Array.isArray(data) ? data : [];
+  } catch { return []; }
+}
+
+function writeAnnouncements(data) {
+  const tmp = ANNOUNCEMENTS_PATH + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+  fs.renameSync(tmp, ANNOUNCEMENTS_PATH);
+}
+
+if (!fs.existsSync(ANNOUNCEMENTS_PATH)) writeAnnouncements([]);
+
 const makeKey  = (liner, size) => `${liner}|${size}`;
 const parseKey = key => { const [liner,size='ALL']=key.split('|'); return {liner,size}; };
 
@@ -231,15 +249,54 @@ app.delete('/api/liner/:liner', auth, (req, res) => {
   }
 });
 
-// ── PROTECTED: send announcement ─────────────
+// ── PUBLIC: get all announcements / tasks ─────
+app.get('/api/announcements', (_req, res) => {
+  res.json(readAnnouncements());
+});
+
+// ── PROTECTED: post announcement / task ──────
 app.post('/api/announce', auth, async (req, res) => {
   try {
     const text = (req.body.message || '').trim();
     if (!text) return res.status(400).json({ error: 'message is required' });
-    await broadcastAndPin(`📣 *ANNOUNCEMENT*\n${DIV}\n${text}`);
-    res.json({ success: true });
+
+    const list = readAnnouncements();
+    const item = {
+      id: 'ann_' + Date.now(),
+      text,
+      createdAt: Math.floor(Date.now() / 1000),
+      status: 'pending',
+      doneAt: null,
+    };
+    list.unshift(item);
+    writeAnnouncements(list);
+
+    await broadcastAndPin(`📣 *ANNOUNCEMENT & TASK*\n${DIV}\n${text}\n\n_Staff can view and mark this task as DONE in the web app._`);
+    res.json({ success: true, item, announcements: list });
   } catch (err) {
     console.error('[DASHBOARD /announce]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PUBLIC: mark task as done by staff ────────
+app.post('/api/announce/done', async (req, res) => {
+  try {
+    const id = req.body.id;
+    if (!id) return res.status(400).json({ error: 'id is required' });
+
+    const list = readAnnouncements();
+    const item = list.find(a => a.id === id);
+    if (!item) return res.status(404).json({ error: 'Announcement not found' });
+
+    item.status = 'done';
+    item.doneAt = Math.floor(Date.now() / 1000);
+    writeAnnouncements(list);
+
+    await broadcastAndPin(`✅ *TASK COMPLETED BY STAFF*\n${DIV}\n📌 *Task:* ${item.text}\n\n_Marked as DONE in the web app._`);
+    res.json({ success: true, item, announcements: list });
+  } catch (err) {
+    console.error('[DASHBOARD /announce/done]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
