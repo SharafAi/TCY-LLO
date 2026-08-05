@@ -976,10 +976,10 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                                   const isCatIdle  = e.category === 'idle'
                                   const isCatFresh = e.category === 'fresh'
                                   return (
-                                    <div key={i} className="entry-row">
-                                      <div className="entry-meta">
-                                        <span className="entry-date">{formatBlockDate(e.addedAt)}</span>
-                                        {/* Current status badge */}
+                                    <div key={i} className="block-action-card">
+                                      {/* Top: block pill + status */}
+                                      <div className="bac-top">
+                                        <BlockPill block={e.block} full={false}/>
                                         {isCatFresh && (
                                           <span className="cat-status-badge cat-status-badge--fresh">
                                             <ClearedEmptyIcon size={10}/> NEW
@@ -991,32 +991,30 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                                           </span>
                                         )}
                                       </div>
-                                      <BlockPill block={e.block} full={false}/>
-                                      <div className="entry-actions">
-                                        {/* Category toggle */}
-                                        {!isCatFresh && (
-                                          <button
-                                            onClick={() => handleSetCategory(e.liner, e.size, e.block, 'fresh')}
-                                            className="cat-toggle-btn cat-toggle-btn--fresh"
-                                            title="Mark as NEW">
-                                            <ClearedEmptyIcon size={11}/> NEW
+                                      {/* Bottom: date + actions */}
+                                      <div className="bac-bottom">
+                                        <span className="entry-date">{formatBlockDate(e.addedAt)}</span>
+                                        <div className="bac-actions">
+                                          {!isCatFresh && (
+                                            <button onClick={() => handleSetCategory(e.liner, e.size, e.block, 'fresh')}
+                                              className="cat-toggle-btn cat-toggle-btn--fresh">
+                                              <ClearedEmptyIcon size={11}/> NEW
+                                            </button>
+                                          )}
+                                          {!isCatIdle && (
+                                            <button onClick={() => handleSetCategory(e.liner, e.size, e.block, 'idle')}
+                                              className="cat-toggle-btn cat-toggle-btn--idle">
+                                              <DwellAlertIcon size={11}/> LONG IDLE
+                                            </button>
+                                          )}
+                                          <button disabled={loading}
+                                            onClick={() => handleMarkFull(e.liner, e.size, e.block)}
+                                            className="btn btn--danger-sm">
+                                            Mark FULL
                                           </button>
-                                        )}
-                                        {!isCatIdle && (
-                                          <button
-                                            onClick={() => handleSetCategory(e.liner, e.size, e.block, 'idle')}
-                                            className="cat-toggle-btn cat-toggle-btn--idle"
-                                            title="Mark as LONG IDLE">
-                                            <DwellAlertIcon size={11}/> IDLE
-                                          </button>
-                                        )}
-                                        <button disabled={loading}
-                                          onClick={() => handleMarkFull(e.liner, e.size, e.block)}
-                                          className="btn btn--danger-sm">
-                                          FULL
-                                        </button>
-                                        <button onClick={() => handleDelete(e.liner, e.size, e.block)}
-                                          className="del-x" title="Delete Block"><TrashIcon/></button>
+                                          <button onClick={() => handleDelete(e.liner, e.size, e.block)}
+                                            className="del-x" title="Remove"><TrashIcon/></button>
+                                        </div>
                                       </div>
                                     </div>
                                   )
