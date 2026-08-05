@@ -322,9 +322,9 @@ if (fs.existsSync(PUBLIC_DIR)) {
       }
     }
   }));
-  app.get('*', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
+  app.use((_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 } else {
-  app.get('*', (_req, res) =>
+  app.use((_req, res) =>
     res.send('<h2>Run <code>cd webapp &amp;&amp; npm install &amp;&amp; npm run build</code> first.</h2>')
   );
 }
