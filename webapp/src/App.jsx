@@ -10,27 +10,51 @@ const SIZES = [
   { id:'40RF', label:'40 RF', rf:true  },
 ]
 const NEW_HOURS = 24
+const IDLE_HOURS = 72   // containers idle >72h = Long Idle
 const TB_ACCENT = {
   TB1:'#3b82f6', TB2:'#10b981', TB3:'#a78bfa',
   TB4:'#fb923c', TB5:'#22d3ee', TB6:'#f43f5e', TB7:'#fbbf24',
 }
 
+// Container categories
+const CATEGORIES = [
+  { id:'standard', label:'Standard',    icon:'📦', color:'#22d3ee',  desc:'Regular container block' },
+  { id:'fresh',    label:'Fresh Empty', icon:'🟢', color:'#10b981',  desc:'Newly available empty block' },
+  { id:'idle',     label:'Long Idle',   icon:'🕐', color:'#f59e0b',  desc:'Container idle >72 hours' },
+]
+
 function getTBAccent(block='') {
   const tb = Object.keys(TB_ACCENT).find(k => block.startsWith(k))
   return TB_ACCENT[tb] || '#64748b'
 }
-function isNew(e)  { return (Date.now()/1000 - (e.addedAt||0)) < NEW_HOURS*3600 }
-function isFull(e) { return e.full === true }
+function isNew(e)    { return (Date.now()/1000 - (e.addedAt||0)) < NEW_HOURS*3600 }
+function isFull(e)   { return e.full === true }
+function isIdle(e)   { return !e.full && (e.category === 'idle' || (!e.category && (Date.now()/1000 - (e.addedAt||0)) > IDLE_HOURS*3600)) }
+function isFresh(e)  { return !e.full && e.category === 'fresh' }
 function parseKey(key) {
   const [liner, size='ALL'] = key.split('|')
   return { liner, size }
 }
+function getCatMeta(cat) { return CATEGORIES.find(c => c.id === cat) || CATEGORIES[0] }
 
-async function apiFetch(path, opts={}) {
-  const res  = await fetch(path, opts)
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'Request failed')
-  return data
+// ─── apiFetch with retry + timeout ───────────────────────────
+async function apiFetch(path, opts={}, retries=2, timeoutMs=12000) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController()
+    const tid = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res  = await fetch(path, { ...opts, signal: controller.signal })
+      clearTimeout(tid)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Request failed')
+      return data
+    } catch (err) {
+      clearTimeout(tid)
+      const isLast = attempt === retries
+      if (isLast) throw err
+      await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
+    }
+  }
 }
 
 // ─── Icons ───────────────────────────────────────────────────
@@ -106,6 +130,19 @@ const BanIcon = () => (
     <path strokeLinecap="round" d="M4.93 4.93l14.14 14.14"/>
   </svg>
 )
+
+// ─── Offline Banner ───────────────────────────────────────────
+function OfflineBanner({ status }) {
+  if (status === 'online') return null
+  return (
+    <div className={`offline-banner offline-banner--${status}`}>
+      <span className="offline-dot"/>
+      {status === 'reconnecting'
+        ? <><span className="spinner offline-spinner"/>Reconnecting to server…</>
+        : '⚠️ Server unreachable — showing last known data'}
+    </div>
+  )
+}
 
 // ─── Toast ────────────────────────────────────────────────────
 function Toast({ msg, type, onDone }) {
@@ -512,13 +549,48 @@ function StaffView({ db, onAdminClick, password, onRefresh }) {
                               {activeArr.length === 0 && fullArr.length === 0 && (
                                 <span className="no-blocks-text">No blocks assigned</span>
                               )}
-                              {activeArr.map((e,i) => (
+
+                              {/* Fresh Empty category */}
+                              {activeArr.filter(e => isFresh(e)).length > 0 && (
+                                <div className="cat-section cat-section--fresh">
+                                  <span className="cat-section-label">🟢 Fresh Empty</span>
+                                  <div className="cat-section-blocks">
+                                    {activeArr.filter(e => isFresh(e)).map((e,i) => (
+                                      <div key={`fr${i}`} className="block-tag block-tag--fresh" style={{'--bc': getTBAccent(e.block)}}
+                                        onClick={() => setSelectedBlock({ liner, size: sizeId, block: e.block, addedAt: e.addedAt, full: false, category: e.category })}>
+                                        <span className="block-tag-dot"/>
+                                        <span className="block-tag-name">{e.block}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Long Idle category */}
+                              {activeArr.filter(e => isIdle(e)).length > 0 && (
+                                <div className="cat-section cat-section--idle">
+                                  <span className="cat-section-label">🕐 Long Idle</span>
+                                  <div className="cat-section-blocks">
+                                    {activeArr.filter(e => isIdle(e)).map((e,i) => (
+                                      <div key={`id${i}`} className="block-tag block-tag--idle" style={{'--bc': getTBAccent(e.block)}}
+                                        onClick={() => setSelectedBlock({ liner, size: sizeId, block: e.block, addedAt: e.addedAt, full: false, category: e.category })}>
+                                        <span className="block-tag-dot"/>
+                                        <span className="block-tag-name">{e.block}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Standard blocks */}
+                              {activeArr.filter(e => !isFresh(e) && !isIdle(e)).map((e,i) => (
                                 <div key={i} className="block-tag block-tag--active" style={{'--bc': getTBAccent(e.block)}}
                                   onClick={() => setSelectedBlock({ liner, size: sizeId, block: e.block, addedAt: e.addedAt, full: false })}>
                                   <span className="block-tag-dot"/>
                                   <span className="block-tag-name">{e.block}</span>
                                 </div>
                               ))}
+
                               {fullArr.map((e,i) => (
                                 <div key={`f${i}`} className="block-tag block-tag--full"
                                   onClick={() => setSelectedBlock({ liner, size: sizeId, block: e.block, addedAt: e.addedAt, full: true })}>
@@ -578,6 +650,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
   const [size,            setSize]            = useState('20FT')
   const [tb,              setTb]              = useState('TB1')
   const [bay,             setBay]             = useState('1')
+  const [category,        setCategory]        = useState('standard')
   const [loading,         setLoading]         = useState(false)
   const [toast,           setToast]           = useState(null)
   const [announceText,    setAnnounceText]    = useState('')
@@ -600,13 +673,14 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
     setLoading(true)
     try {
       await apiFetch('/api/set', { method:'POST', headers:H,
-        body: JSON.stringify({ liner:name, size, block:`${tb}-${bay}` }) })
+        body: JSON.stringify({ liner:name, size, block:`${tb}-${bay}`, category }) })
       showToast(`${name} · ${size} → ${tb}-${bay} set & pinned!`)
-      setLiner(''); setTb('TB1'); setBay('1')
+      setLiner(''); setTb('TB1'); setBay('1'); setCategory('standard')
       onRefresh()
     } catch(err) { handleErr(err) }
     finally { setLoading(false) }
   }
+
 
   async function handleMarkFull(liner, size, block) {
     if (!confirm(`Mark ${liner} · ${block} as FULL?\nThis will notify the staff group.`)) return
@@ -766,13 +840,32 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                   </select>
                 </div>
               </div>
+              <div className="field">
+                <label className="field-lbl">Container Category</label>
+                <div className="cat-grid">
+                  {CATEGORIES.map(c => (
+                    <button type="button" key={c.id}
+                      className={`cat-btn ${category===c.id?'cat-btn--on':''}`}
+                      style={{'--cc': c.color}}
+                      onClick={() => setCategory(c.id)}>
+                      <span className="cat-btn-icon">{c.icon}</span>
+                      <span className="cat-btn-label">{c.label}</span>
+                      <span className="cat-btn-desc">{c.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="preview-box">
                 <span className="preview-lbl">Preview block:</span>
                 <BlockPill block={`${tb}-${bay}`} full={false} size="lg"/>
+                <span className="cat-preview-tag" style={{background: `${getCatMeta(category).color}20`, color: getCatMeta(category).color, borderColor: `${getCatMeta(category).color}40`}}>
+                  {getCatMeta(category).icon} {getCatMeta(category).label}
+                </span>
               </div>
               <button type="submit" disabled={loading} className="btn btn--primary w-full">
                 {loading ? <span className="spinner"/> : <><MegaphoneIcon/> Set & Broadcast to Staff</>}
               </button>
+
             </form>
           </div>
         )}
@@ -973,9 +1066,20 @@ export default function App() {
   const [view,          setView]         = useState('staff')
   const [showModal,     setShowModal]    = useState(false)
   const [password,      setPassword]     = useState(sessionStorage.getItem('tcy-pass')||'')
+  const [connStatus,    setConnStatus]   = useState('online') // 'online'|'reconnecting'|'offline'
+  const failRef = useRef(0)
 
   const fetchDB = useCallback(async () => {
-    try { setDb(await apiFetch('/api/layout')) } catch {}
+    setConnStatus(s => s === 'online' ? 'online' : 'reconnecting')
+    try {
+      const data = await apiFetch('/api/layout')
+      setDb(data)
+      failRef.current = 0
+      setConnStatus('online')
+    } catch {
+      failRef.current += 1
+      setConnStatus(failRef.current >= 2 ? 'offline' : 'reconnecting')
+    }
   }, [])
 
   useEffect(() => {
@@ -1013,6 +1117,7 @@ export default function App() {
 
   return (
     <>
+      <OfflineBanner status={connStatus}/>
       {showModal && <PasswordModal onSuccess={handleSuccess} onClose={() => setShowModal(false)}/>}
       {view==='staff' ? (
         <StaffView db={db} onAdminClick={handleAdminClick} password={password} onRefresh={fetchDB}/>

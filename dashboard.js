@@ -107,9 +107,10 @@ app.get('/api/layout', (req, res) => {
 // ── PROTECTED: add a block to liner+size ────
 app.post('/api/set', auth, async (req, res) => {
   try {
-    const liner = (req.body.liner || '').toUpperCase().trim();
-    const size  = (req.body.size  || '20FT').toUpperCase().trim();
-    const block = (req.body.block || '').toUpperCase().trim();
+    const liner    = (req.body.liner    || '').toUpperCase().trim();
+    const size     = (req.body.size     || '20FT').toUpperCase().trim();
+    const block    = (req.body.block    || '').toUpperCase().trim();
+    const category = (req.body.category || 'standard').toLowerCase().trim();
     if (!liner || !block) return res.status(400).json({ error: 'liner and block are required' });
 
     const addedAt = Math.floor(Date.now()/1000);
@@ -117,7 +118,7 @@ app.post('/api/set', auth, async (req, res) => {
     const key     = makeKey(liner, size);
     if (!db[key]) db[key] = [];
     const isAdditional = db[key].filter(e=>!e.full).length > 0;
-    db[key].push({ block, addedAt, full: false });
+    db[key].push({ block, addedAt, full: false, category });
     writeDB(db);
 
     const broadcastText = isAdditional
