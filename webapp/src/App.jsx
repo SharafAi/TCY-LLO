@@ -9,19 +9,19 @@ const SIZES = [
   { id:'20RF', label:'20 RF', rf:true  },
   { id:'40RF', label:'40 RF', rf:true  },
 ]
-const NEW_HOURS = 24
-const IDLE_HOURS = 72   // containers idle >72h = Long Idle
+const NEW_HOURS   = 24
+const IDLE_DAYS   = 30              // containers idle >30 days = LONG IDLE
+const IDLE_HOURS  = IDLE_DAYS * 24
 const TB_ACCENT = {
   TB1:'#3b82f6', TB2:'#10b981', TB3:'#a78bfa',
   TB4:'#fb923c', TB5:'#22d3ee', TB6:'#f43f5e', TB7:'#fbbf24',
 }
 
-// Container categories (port-industry terminology)
-// icons are rendered as React components — see ClearedEmptyIcon / DwellAlertIcon
+// Container status categories
 const CATEGORIES = [
-  { id:'standard', label:'Standard Block',       color:'#22d3ee', desc:'General yard allocation' },
-  { id:'fresh',    label:'Cleared for Dispatch',  color:'#10b981', desc:'Verified empty — gate-in ready' },
-  { id:'idle',     label:'Extended Dwell',        color:'#f59e0b', desc:'Dwell time exceeds 72 hrs' },
+  { id:'standard', label:'Standard',  color:'#22d3ee', desc:'General yard allocation' },
+  { id:'fresh',    label:'NEW',       color:'#10b981', desc:'Newly placed — gate-in ready' },
+  { id:'idle',     label:'LONG IDLE', color:'#f59e0b', desc:'Dwell exceeds 30 days' },
 ]
 
 function getTBAccent(block='') {
@@ -702,6 +702,14 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
     finally { setLoading(false) }
   }
 
+  async function handleSetCategory(liner, size, block, newCat) {
+    try {
+      await apiFetch('/api/block/category', { method:'PATCH', headers:H,
+        body: JSON.stringify({ liner, size, block, category: newCat }) })
+      showToast(`${block} → ${newCat === 'idle' ? 'LONG IDLE' : 'NEW'}`)
+      onRefresh()
+    } catch(err) { handleErr(err) }
+  }
 
   async function handleMarkFull(liner, size, block) {
     if (!confirm(`Mark ${liner} · ${block} as FULL?\nThis will notify the staff group.`)) return
@@ -862,7 +870,7 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                 </div>
               </div>
               <div className="field">
-                <label className="field-lbl">Container Category</label>
+                <label className="field-lbl">Block Status</label>
                 <div className="cat-grid">
                   {CATEGORIES.map(c => (
                     <button type="button" key={c.id}
@@ -964,23 +972,55 @@ function AdminPanel({ password, db, onRefresh, onLogout }) {
                                 <span className="chip-count">{sizeItems.length}</span>
                               </div>
                               <div className="entry-list">
-                                {sizeItems.map((e, i) => (
-                                  <div key={i} className="entry-row">
-                                    <div className="entry-meta">
-                                      <span className="entry-date">{formatBlockDate(e.addedAt)}</span>
+                                {sizeItems.map((e, i) => {
+                                  const isCatIdle  = e.category === 'idle'
+                                  const isCatFresh = e.category === 'fresh'
+                                  return (
+                                    <div key={i} className="entry-row">
+                                      <div className="entry-meta">
+                                        <span className="entry-date">{formatBlockDate(e.addedAt)}</span>
+                                        {/* Current status badge */}
+                                        {isCatFresh && (
+                                          <span className="cat-status-badge cat-status-badge--fresh">
+                                            <ClearedEmptyIcon size={10}/> NEW
+                                          </span>
+                                        )}
+                                        {isCatIdle && (
+                                          <span className="cat-status-badge cat-status-badge--idle">
+                                            <DwellAlertIcon size={10}/> LONG IDLE
+                                          </span>
+                                        )}
+                                      </div>
+                                      <BlockPill block={e.block} full={false}/>
+                                      <div className="entry-actions">
+                                        {/* Category toggle */}
+                                        {!isCatFresh && (
+                                          <button
+                                            onClick={() => handleSetCategory(e.liner, e.size, e.block, 'fresh')}
+                                            className="cat-toggle-btn cat-toggle-btn--fresh"
+                                            title="Mark as NEW">
+                                            <ClearedEmptyIcon size={11}/> NEW
+                                          </button>
+                                        )}
+                                        {!isCatIdle && (
+                                          <button
+                                            onClick={() => handleSetCategory(e.liner, e.size, e.block, 'idle')}
+                                            className="cat-toggle-btn cat-toggle-btn--idle"
+                                            title="Mark as LONG IDLE">
+                                            <DwellAlertIcon size={11}/> IDLE
+                                          </button>
+                                        )}
+                                        <button disabled={loading}
+                                          onClick={() => handleMarkFull(e.liner, e.size, e.block)}
+                                          className="btn btn--danger-sm">
+                                          FULL
+                                        </button>
+                                        <button onClick={() => handleDelete(e.liner, e.size, e.block)}
+                                          className="del-x" title="Delete Block"><TrashIcon/></button>
+                                      </div>
                                     </div>
-                                    <BlockPill block={e.block} full={false}/>
-                                    <div className="entry-actions">
-                                      <button disabled={loading}
-                                        onClick={() => handleMarkFull(e.liner, e.size, e.block)}
-                                        className="btn btn--danger-sm">
-                                        Mark FULL
-                                      </button>
-                                      <button onClick={() => handleDelete(e.liner, e.size, e.block)}
-                                        className="del-x" title="Delete Block"><TrashIcon/></button>
-                                    </div>
-                                  </div>
-                                ))}
+                                  )
+                                })}
                               </div>
                             </div>
                           )

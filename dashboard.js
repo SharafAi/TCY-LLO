@@ -189,6 +189,26 @@ app.delete('/api/block', auth, (req, res) => {
   }
 });
 
+// ── PROTECTED: update block category (NEW / LONG IDLE) ───────
+app.patch('/api/block/category', auth, (req, res) => {
+  try {
+    const liner    = (req.body.liner    || '').toUpperCase().trim();
+    const size     = (req.body.size     || '20FT').toUpperCase().trim();
+    const block    = (req.body.block    || '').toUpperCase().trim();
+    const category = (req.body.category || 'standard').toLowerCase().trim();
+    const key      = makeKey(liner, size);
+    const db       = readDB();
+    if (!db[key]) return res.status(404).json({ error: 'Key not found' });
+    const entry = db[key].find(e => e.block === block);
+    if (!entry) return res.status(404).json({ error: 'Block not found' });
+    entry.category = category;
+    writeDB(db);
+    res.json({ success: true, liner, size, block, category });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── PROTECTED: delete entire liner+size key ──
 app.delete('/api/liner/:liner', auth, (req, res) => {
   try {

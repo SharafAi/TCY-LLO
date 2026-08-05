@@ -758,3 +758,44 @@ html, body, #root {
 }
 .block-tag--idle .block-tag-dot { background: #f59e0b; }
 .block-tag--idle:hover { transform: translateY(-1px); }
+
+/* ─── Category Status Badge (in entry-meta) ─────────── */
+.cat-status-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 9px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; font-family: 'Space Grotesk', sans-serif;
+  padding: 2px 7px; border-radius: 4px; margin-top: 3px;
+  border: 1px solid transparent;
+}
+.cat-status-badge--fresh {
+  background: rgba(16,185,129,.12); color: #10b981;
+  border-color: rgba(16,185,129,.3);
+}
+.cat-status-badge--idle {
+  background: rgba(245,158,11,.12); color: #f59e0b;
+  border-color: rgba(245,158,11,.3);
+}
+
+/* ─── Category Toggle Buttons (NEW / IDLE) ───────────── */
+.cat-toggle-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 800; letter-spacing: .06em;
+  font-family: 'Space Grotesk', sans-serif;
+  padding: 5px 9px; border-radius: 7px; cursor: pointer;
+  border: 1px solid transparent; transition: all .15s;
+  white-space: nowrap;
+}
+.cat-toggle-btn--fresh {
+  background: rgba(16,185,129,.08); color: #10b981;
+  border-color: rgba(16,185,129,.25);
+}
+.cat-toggle-btn--fresh:hover {
+  background: rgba(16,185,129,.18); border-color: #10b981;
+}
+.cat-toggle-btn--idle {
+  background: rgba(245,158,11,.08); color: #f59e0b;
+  border-color: rgba(245,158,11,.25);
+}
+.cat-toggle-btn--idle:hover {
+  background: rgba(245,158,11,.18); border-color: #f59e0b;
+}
